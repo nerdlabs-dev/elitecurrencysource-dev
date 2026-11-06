@@ -70,6 +70,11 @@ int ECDSA_SIG_recover_key_GFp(EC_KEY *eckey, ECDSA_SIG *ecsig, const unsigned ch
     int n = 0;
     int i = recid / 2;
 
+    // ECDSA_SIG is opaque since OpenSSL 1.1; read r and s through the accessor
+    const BIGNUM *sig_r = NULL;
+    const BIGNUM *sig_s = NULL;
+    ECDSA_SIG_get0(ecsig, &sig_r, &sig_s);
+
     const EC_GROUP *group = EC_KEY_get0_group(eckey);
     if ((ctx = BN_CTX_new()) == NULL) { ret = -1; goto err; }
     BN_CTX_start(ctx);
@@ -78,7 +83,7 @@ int ECDSA_SIG_recover_key_GFp(EC_KEY *eckey, ECDSA_SIG *ecsig, const unsigned ch
     x = BN_CTX_get(ctx);
     if (!BN_copy(x, order)) { ret=-1; goto err; }
     if (!BN_mul_word(x, i)) { ret=-1; goto err; }
-    if (!BN_add(x, x, ecsig->r)) { ret=-1; goto err; }
+    if (!BN_add(x, x, sig_r)) { ret=-1; goto err; }
     field = BN_CTX_get(ctx);
     if (!EC_GROUP_get_curve_GFp(group, field, NULL, NULL, ctx)) { ret=-2; goto err; }
     if (BN_cmp(x, field) >= 0) { ret=0; goto err; }
@@ -96,12 +101,12 @@ int ECDSA_SIG_recover_key_GFp(EC_KEY *eckey, ECDSA_SIG *ecsig, const unsigned ch
     if (!BN_bin2bn(msg, msglen, e)) { ret=-1; goto err; }
     if (8*msglen > n) BN_rshift(e, e, 8-(n & 7));
     zero = BN_CTX_get(ctx);
-    if (!BN_zero(zero)) { ret=-1; goto err; }
+    BN_zero(zero); // returns void since OpenSSL 1.1
     if (!BN_mod_sub(e, zero, e, order, ctx)) { ret=-1; goto err; }
     rr = BN_CTX_get(ctx);
-    if (!BN_mod_inverse(rr, ecsig->r, order, ctx)) { ret=-1; goto err; }
+    if (!BN_mod_inverse(rr, sig_r, order, ctx)) { ret=-1; goto err; }
     sor = BN_CTX_get(ctx);
-    if (!BN_mod_mul(sor, ecsig->s, rr, order, ctx)) { ret=-1; goto err; }
+    if (!BN_mod_mul(sor, sig_s, rr, order, ctx)) { ret=-1; goto err; }
     eor = BN_CTX_get(ctx);
     if (!BN_mod_mul(eor, e, rr, order, ctx)) { ret=-1; goto err; }
     if (!EC_POINT_mul(group, Q, eor, R, sor, ctx)) { ret=-2; goto err; }
@@ -149,13 +154,18 @@ CKey::CKey(const CKey& b)
     if (pkey == NULL)
         throw key_error("CKey::CKey(const CKey&) : EC_KEY_dup failed");
     fSet = b.fSet;
+    // was left uninitialised, so a copied key could report the wrong compression
+    fCompressedPubKey = b.fCompressedPubKey;
 }
 
 CKey& CKey::operator=(const CKey& b)
 {
+    if (this == &b)
+        return (*this);
     if (!EC_KEY_copy(pkey, b.pkey))
         throw key_error("CKey::operator=(const CKey&) : EC_KEY_copy failed");
     fSet = b.fSet;
+    fCompressedPubKey = b.fCompressedPubKey;
     return (*this);
 }
 
@@ -185,23 +195,23 @@ void CKey::MakeNewKey(bool fCompressed)
 
 bool CKey::SetPrivKey(const CPrivKey& vchPrivKey)
 {
+    if (vchPrivKey.empty())
+        return false;
+    // Parse into a new key rather than over the existing one. The old code
+    // deliberately leaked pkey on bad input to dodge a crash in 2011-era
+    // OpenSSL; parsing into a fresh object avoids both the crash and the leak.
     const unsigned char* pbegin = &vchPrivKey[0];
-    if (d2i_ECPrivateKey(&pkey, &pbegin, vchPrivKey.size()))
+    EC_KEY* pnew = d2i_ECPrivateKey(NULL, &pbegin, vchPrivKey.size());
+    if (pnew != NULL && EC_KEY_check_key(pnew))
     {
-        // In testing, d2i_ECPrivateKey can return true
-        // but fill in pkey with a key that fails
-        // EC_KEY_check_key, so:
-        if (EC_KEY_check_key(pkey))
-        {
-            fSet = true;
-            return true;
-        }
+        EC_KEY_free(pkey);
+        pkey = pnew;
+        fSet = true;
+        if (fCompressedPubKey)
+            EC_KEY_set_conv_form(pkey, POINT_CONVERSION_COMPRESSED);
+        return true;
     }
-    // If vchPrivKey data is bad d2i_ECPrivateKey() can
-    // leave pkey in a state where calling EC_KEY_free()
-    // crashes. To avoid that, set pkey to NULL and
-    // leak the memory (a leak is better than a crash)
-    pkey = NULL;
+    EC_KEY_free(pnew);
     Reset();
     return false;
 }
@@ -234,9 +244,11 @@ CSecret CKey::GetSecret(bool &fCompressed) const
     CSecret vchRet;
     vchRet.resize(32);
     const BIGNUM *bn = EC_KEY_get0_private_key(pkey);
-    int nBytes = BN_num_bytes(bn);
     if (bn == NULL)
         throw key_error("CKey::GetSecret() : EC_KEY_get0_private_key failed");
+    int nBytes = BN_num_bytes(bn);
+    if (nBytes > 32)
+        throw key_error("CKey::GetSecret() : private key too large");
     int n=BN_bn2bin(bn,&vchRet[32 - nBytes]);
     if (n != nBytes)
         throw key_error("CKey::GetSecret(): BN_bn2bin failed");
@@ -258,6 +270,8 @@ CPrivKey CKey::GetPrivKey() const
 
 bool CKey::SetPubKey(const CPubKey& vchPubKey)
 {
+    if (vchPubKey.vchPubKey.empty())
+        return false;
     const unsigned char* pbegin = &vchPubKey.vchPubKey[0];
     if (o2i_ECPublicKey(&pkey, &pbegin, vchPubKey.vchPubKey.size()))
     {
@@ -266,7 +280,8 @@ bool CKey::SetPubKey(const CPubKey& vchPubKey)
             SetCompressedPubKey();
         return true;
     }
-    pkey = NULL;
+    // o2i_ECPublicKey leaves pkey a valid object on failure, so free it
+    // normally (it used to be set to NULL and leaked)
     Reset();
     return false;
 }
@@ -290,15 +305,34 @@ bool CKey::Sign(uint256 hash, std::vector<unsigned char>& vchSig)
     if (sig == NULL)
         return false;
     BN_CTX *ctx = BN_CTX_new();
+    if (ctx == NULL)
+    {
+        ECDSA_SIG_free(sig);
+        return false;
+    }
     BN_CTX_start(ctx);
     const EC_GROUP *group = EC_KEY_get0_group(pkey);
     BIGNUM *order = BN_CTX_get(ctx);
     BIGNUM *halforder = BN_CTX_get(ctx);
     EC_GROUP_get_order(group, order, ctx);
     BN_rshift1(halforder, order);
-    if (BN_cmp(sig->s, halforder) > 0) {
+    const BIGNUM *sig_r = NULL;
+    const BIGNUM *sig_s = NULL;
+    ECDSA_SIG_get0(sig, &sig_r, &sig_s);
+    if (BN_cmp(sig_s, halforder) > 0) {
         // enforce low S values, by negating the value (modulo the order) if above order/2.
-        BN_sub(sig->s, order, sig->s);
+        // ECDSA_SIG is opaque since OpenSSL 1.1, so build the new s and hand it back.
+        BIGNUM *new_r = BN_dup(sig_r);
+        BIGNUM *new_s = BN_new();
+        if (new_r == NULL || new_s == NULL || !BN_sub(new_s, order, sig_s) || !ECDSA_SIG_set0(sig, new_r, new_s))
+        {
+            BN_free(new_r);
+            BN_free(new_s);
+            BN_CTX_end(ctx);
+            BN_CTX_free(ctx);
+            ECDSA_SIG_free(sig);
+            return false;
+        }
     }
     BN_CTX_end(ctx);
     BN_CTX_free(ctx);
@@ -323,8 +357,11 @@ bool CKey::SignCompact(uint256 hash, std::vector<unsigned char>& vchSig)
         return false;
     vchSig.clear();
     vchSig.resize(65,0);
-    int nBitsR = BN_num_bits(sig->r);
-    int nBitsS = BN_num_bits(sig->s);
+    const BIGNUM *sig_r = NULL;
+    const BIGNUM *sig_s = NULL;
+    ECDSA_SIG_get0(sig, &sig_r, &sig_s);
+    int nBitsR = BN_num_bits(sig_r);
+    int nBitsS = BN_num_bits(sig_s);
     if (nBitsR <= 256 && nBitsS <= 256)
     {
         int nRecId = -1;
@@ -349,8 +386,8 @@ bool CKey::SignCompact(uint256 hash, std::vector<unsigned char>& vchSig)
         }
 
         vchSig[0] = nRecId+27+(fCompressedPubKey ? 4 : 0);
-        BN_bn2bin(sig->r,&vchSig[33-(nBitsR+7)/8]);
-        BN_bn2bin(sig->s,&vchSig[65-(nBitsS+7)/8]);
+        BN_bn2bin(sig_r,&vchSig[33-(nBitsR+7)/8]);
+        BN_bn2bin(sig_s,&vchSig[65-(nBitsS+7)/8]);
         fOk = true;
     }
     ECDSA_SIG_free(sig);
@@ -368,12 +405,25 @@ bool CKey::SetCompactSignature(uint256 hash, const std::vector<unsigned char>& v
     int nV = vchSig[0];
     if (nV<27 || nV>=35)
         return false;
+    // ECDSA_SIG is opaque since OpenSSL 1.1; set0 takes ownership of r and s
     ECDSA_SIG *sig = ECDSA_SIG_new();
-    BN_bin2bn(&vchSig[1],32,sig->r);
-    BN_bin2bn(&vchSig[33],32,sig->s);
+    BIGNUM *sig_r = BN_bin2bn(&vchSig[1], 32, NULL);
+    BIGNUM *sig_s = BN_bin2bn(&vchSig[33], 32, NULL);
+    if (sig == NULL || sig_r == NULL || sig_s == NULL || !ECDSA_SIG_set0(sig, sig_r, sig_s))
+    {
+        BN_free(sig_r);
+        BN_free(sig_s);
+        ECDSA_SIG_free(sig);
+        return false;
+    }
 
     EC_KEY_free(pkey);
     pkey = EC_KEY_new_by_curve_name(NID_secp256k1);
+    if (pkey == NULL)
+    {
+        ECDSA_SIG_free(sig);
+        throw key_error("CKey::SetCompactSignature() : EC_KEY_new_by_curve_name failed");
+    }
     if (nV >= 31)
     {
         SetCompressedPubKey();

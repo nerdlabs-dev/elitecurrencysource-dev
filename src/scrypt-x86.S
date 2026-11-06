@@ -910,3 +910,7 @@ xmm_scrypt_core_loop2:
 	ret
 
 #endif
+
+#if defined(__linux__) && defined(__ELF__)
+.section .note.GNU-stack,"",%progbits
+#endif
