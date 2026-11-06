@@ -9,8 +9,12 @@
 # Builds with Apple's Clang against Homebrew packages, on Apple Silicon or Intel:
 #   brew install boost openssl@3 berkeley-db@5 miniupnpc
 #   make -f makefile.osx            (links Homebrew's shared libraries)
-#   make -f makefile.osx STATIC=1   (links their static libraries, so the
-#                                    binary runs on Macs without Homebrew)
+#   make -f makefile.osx STATIC=1 BDB_PREFIX=...
+#                                   (links static libraries, so the binary runs
+#                                    on Macs without Homebrew; Homebrew's
+#                                    berkeley-db@5 has no static library, so
+#                                    point BDB_PREFIX at a Berkeley DB 5.3 built
+#                                    with --enable-cxx, as the GitHub build does)
 # Paths can be overridden: BREW_PREFIX, BOOST_PREFIX, OPENSSL_PREFIX,
 # BDB_PREFIX, MINIUPNPC_PREFIX.
 

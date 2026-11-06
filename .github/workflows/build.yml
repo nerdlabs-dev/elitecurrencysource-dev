@@ -2,8 +2,9 @@
 #   Linux    1337d (daemon) and Elite-qt (wallet)        Ubuntu 24.04, x86_64
 #   Windows  1337d.exe and Elite-qt.exe, self-contained  MSYS2 MinGW-w64, x86_64
 #   macOS    1337d for Apple Silicon and Intel,
-#            Elite.app (in a .dmg) for Apple Silicon      Homebrew
+#            Elite.app (in a .dmg) for Apple Silicon      Homebrew + Berkeley DB built here
 # Each daemon is smoke-tested after it's built (contrib/ci/smoke-test.sh).
+# Builds use make -k so a failing build reports all of its errors at once.
 #
 # Every push keeps the binaries as downloadable "artifacts" on the run's page.
 # Pushing a version tag (e.g. v3.0.1.0) also publishes them as a GitHub release.
@@ -65,7 +66,7 @@ jobs:
           cd src
           mkdir -p obj/zerocoin
           # STATIC=1 links Boost, Berkeley DB, OpenSSL and miniupnpc statically
-          make -f makefile.unix -j"$(nproc)" USE_UPNP=1 STATIC=1 CXX="ccache g++" CC="ccache gcc"
+          make -k -f makefile.unix -j"$(nproc)" USE_UPNP=1 STATIC=1 CXX="ccache g++" CC="ccache gcc"
           strip 1337d
           ccache -s
 
@@ -134,7 +135,7 @@ jobs:
             "QMAKE_CC=ccache gcc" "QMAKE_CXX=ccache g++" "QMAKE_LINK=g++" \
             "QRENCODE_INCLUDE_PATH=$RUNNER_TEMP/qrencode/include" "QRENCODE_LIB_PATH=$RUNNER_TEMP/qrencode/lib" \
             1337-qt.pro
-          make -j"$(nproc)"
+          make -k -j"$(nproc)"
           strip Elite-qt
           ccache -s
 
@@ -255,7 +256,7 @@ jobs:
           export CCACHE_DIR="$(cygpath -m "$RUNNER_TEMP/ccache")"
           cd src
           mkdir -p obj/zerocoin
-          make -f makefile.mingw -j"$(nproc)" CC="ccache gcc" CXX="ccache g++" \
+          make -k -f makefile.mingw -j"$(nproc)" CC="ccache gcc" CXX="ccache g++" \
             BDB_INCLUDE_PATH="$BDB/include" BDB_LIB_PATH="$BDB/lib"
           strip 1337d.exe
 
@@ -271,7 +272,7 @@ jobs:
             "QMAKE_CC=ccache gcc" "QMAKE_CXX=ccache g++" "QMAKE_LINK=g++" \
             "BDB_INCLUDE_PATH=$BDB/include" "BDB_LIB_PATH=$BDB/lib" \
             "QRENCODE_INCLUDE_PATH=$QR/include" "QRENCODE_LIB_PATH=$QR/lib" 1337-qt.pro
-          make -j"$(nproc)"
+          make -k -j"$(nproc)"
           ls release
           strip release/Elite-qt.exe
           ccache -s
@@ -321,8 +322,39 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install boost openssl@3 berkeley-db@5 miniupnpc ccache
+          brew install boost openssl@3 miniupnpc automake ccache
           if [ "${{ matrix.gui }}" = "true" ]; then brew install qt@5 qrencode; fi
+
+      - uses: actions/cache@v4
+        id: bdbcache
+        with:
+          path: ${{ runner.temp }}/bdb
+          key: macos-${{ matrix.arch }}-bdb5.3.28-v1
+
+      # Homebrew's berkeley-db@5 has no static libraries, so build Berkeley DB
+      # 5.3 here (the same version as the other platforms)
+      - name: Build static Berkeley DB 5.3.28
+        if: steps.bdbcache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch v5.3.28 https://github.com/berkeleydb/libdb.git "$RUNNER_TEMP/bdbsrc"
+          cd "$RUNNER_TEMP/bdbsrc"
+          # Rename a function that clashes with a compiler built-in
+          sed -i '' 's/__atomic_compare_exchange/__atomic_compare_exchange_db/g' src/dbinc/atomic.h
+          # Its 2013 config.guess/config.sub don't know Apple Silicon; use automake's
+          AM="$(ls -d "$(brew --prefix automake)"/share/automake-* | head -n 1)"
+          cp "$AM/config.guess" "$AM/config.sub" dist/
+          cd build_unix
+          export MACOSX_DEPLOYMENT_TARGET=11.0
+          # 2012-era C: relax Clang's newer errors. Its mutex detection only
+          # knows 32-bit ARM, so use POSIX mutexes.
+          CC=clang CXX=clang++ \
+          CFLAGS="-O2 -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=incompatible-function-pointer-types -Wno-error=incompatible-pointer-types" \
+          CXXFLAGS="-O2" \
+            ../dist/configure --enable-cxx --disable-shared --disable-replication --with-pic \
+            --with-mutex=POSIX/pthreads --prefix="$RUNNER_TEMP/bdb"
+          make -j"$(sysctl -n hw.ncpu)" libdb.a libdb_cxx.a
+          make install_lib install_include
+          ls "$RUNNER_TEMP/bdb/lib" "$RUNNER_TEMP/bdb/include"
 
       - uses: actions/cache@v4
         with:
@@ -337,7 +369,8 @@ jobs:
           mkdir -p obj/zerocoin
           # STATIC=1 links Homebrew's static libraries, so the binary runs on
           # Macs without Homebrew
-          make -f makefile.osx -j"$(sysctl -n hw.ncpu)" STATIC=1 CXX="ccache clang++" CC="ccache clang"
+          make -k -f makefile.osx -j"$(sysctl -n hw.ncpu)" STATIC=1 CXX="ccache clang++" CC="ccache clang" \
+            BDB_PREFIX="$RUNNER_TEMP/bdb"
           strip 1337d
           ccache -s
 
@@ -363,8 +396,9 @@ jobs:
           export CCACHE_DIR="$RUNNER_TEMP/ccache"
           QT="$(brew --prefix qt@5)"
           "$QT/bin/qmake" USE_UPNP=1 USE_QRCODE=1 "CONFIG+=release" "CONFIG-=debug_and_release" \
-            "QMAKE_CC=ccache clang" "QMAKE_CXX=ccache clang++" "QMAKE_LINK=clang++" 1337-qt.pro
-          make -j"$(sysctl -n hw.ncpu)"
+            "QMAKE_CC=ccache clang" "QMAKE_CXX=ccache clang++" "QMAKE_LINK=clang++" \
+            "BDB_INCLUDE_PATH=$RUNNER_TEMP/bdb/include" "BDB_LIB_PATH=$RUNNER_TEMP/bdb/lib" 1337-qt.pro
+          make -k -j"$(sysctl -n hw.ncpu)"
           ccache -s
 
       # Copy Qt and the other libraries into the app, sign it ad hoc (Apple

@@ -8,6 +8,7 @@
 
 #include <QMessageBox>
 #include <QLineEdit>
+#include <QStyle>
 
 #include <boost/lexical_cast.hpp>
 
