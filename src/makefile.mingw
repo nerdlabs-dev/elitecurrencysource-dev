@@ -2,47 +2,63 @@
 # Distributed under the MIT/X11 software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-USE_UPNP:=0
+# Builds 1337d.exe with MinGW-w64, by default against MSYS2's MINGW64 packages:
+#   pacman -S mingw-w64-x86_64-toolchain mingw-w64-x86_64-boost \
+#             mingw-w64-x86_64-openssl mingw-w64-x86_64-miniupnpc mingw-w64-x86_64-zlib
+# plus Berkeley DB 5.3 with its C++ library (MSYS2 only has 6.x), given with
+# BDB_INCLUDE_PATH / BDB_LIB_PATH. Run from an MSYS2 MINGW64 shell:
+#   make -f makefile.mingw BDB_INCLUDE_PATH=... BDB_LIB_PATH=...
+# Everything is linked statically, so 1337d.exe needs no extra DLLs.
 
-INCLUDEPATHS= \
- -I"C:\deps\boost_1_55_0" \
- -I"C:\deps\db-4.8.30.NC\build_unix" \
- -I"C:\deps\openssl-1.0.1g\include"
+USE_UPNP:=1
 
-LIBPATHS= \
- -L"C:\deps\boost_1_55_0\stage\lib" \
- -L"C:\deps\db-4.8.30.NC\build_unix" \
- -L"C:\deps\openssl-1.0.1g"
+MINGW_PREFIX ?= /mingw64
+BOOST_INCLUDE_PATH ?= $(MINGW_PREFIX)/include
+BOOST_LIB_PATH ?= $(MINGW_PREFIX)/lib
+OPENSSL_INCLUDE_PATH ?= $(MINGW_PREFIX)/include
+OPENSSL_LIB_PATH ?= $(MINGW_PREFIX)/lib
+MINIUPNPC_INCLUDE_PATH ?= $(MINGW_PREFIX)/include
+MINIUPNPC_LIB_PATH ?= $(MINGW_PREFIX)/lib
+BOOST_LIB_SUFFIX ?= -mt
+
+INCLUDEPATHS= $(addprefix -I,$(BOOST_INCLUDE_PATH) $(BDB_INCLUDE_PATH) $(OPENSSL_INCLUDE_PATH))
+LIBPATHS= $(addprefix -L,$(BOOST_LIB_PATH) $(BDB_LIB_PATH) $(OPENSSL_LIB_PATH))
+
+# boost_system is header-only since Boost 1.69 and no longer shipped since 1.89
+BOOST_SYSTEM_LIB = $(if $(wildcard $(BOOST_LIB_PATH)/libboost_system$(BOOST_LIB_SUFFIX).a),-l boost_system$(BOOST_LIB_SUFFIX),)
 
 LIBS= \
- -l leveldb \
- -l boost_system-mgw49-mt-s-1_55 \
- -l boost_filesystem-mgw49-mt-s-1_55 \
- -l boost_program_options-mgw49-mt-s-1_55 \
- -l boost_thread-mgw49-mt-s-1_55 \
- -l boost_chrono-mgw49-mt-s-1_55 \
+ $(BOOST_SYSTEM_LIB) \
+ -l boost_filesystem$(BOOST_LIB_SUFFIX) \
+ -l boost_program_options$(BOOST_LIB_SUFFIX) \
+ -l boost_thread$(BOOST_LIB_SUFFIX) \
+ -l boost_chrono$(BOOST_LIB_SUFFIX) \
  -l db_cxx \
  -l ssl \
- -l crypto
+ -l crypto \
+ -l z
 
 DEFS=-DWIN32 -D_WINDOWS -DBOOST_THREAD_USE_LIB -DBOOST_SPIRIT_THREADSAFE
 DEBUGFLAGS=-g
-CFLAGS=-mthreads -O3 -msse2 -w -Wall -Wextra -Wno-ignored-qualifiers -Wformat -Wformat-security -Wno-unused-parameter $(DEBUGFLAGS) $(DEFS) $(INCLUDEPATHS)
-LDFLAGS=-Wl,--dynamicbase -Wl,--nxcompat -static
-
-TESTDEFS = -DTEST_DATA_DIR=$(abspath test/data)
+# -Wno-deprecated-declarations: OpenSSL 3 marks the EC_KEY API deprecated
+CFLAGS=-mthreads -O2 -Wall -Wextra -Wno-ignored-qualifiers -Wformat -Wformat-security -Wno-unused-parameter \
+    -Wno-deprecated-declarations $(DEBUGFLAGS) $(DEFS) $(INCLUDEPATHS)
+xCXXFLAGS=-std=c++17 $(CFLAGS)
+LDFLAGS=-Wl,--dynamicbase -Wl,--nxcompat -static -static-libgcc -static-libstdc++
 
 ifndef USE_UPNP
 	override USE_UPNP = -
 endif
 ifneq (${USE_UPNP}, -)
- INCLUDEPATHS += -I"C:\deps"
- LIBPATHS += -L"C:\deps\miniupnpc"
+ INCLUDEPATHS += $(addprefix -I,$(MINIUPNPC_INCLUDE_PATH))
+ LIBPATHS += $(addprefix -L,$(MINIUPNPC_LIB_PATH))
  LIBS += -l miniupnpc -l iphlpapi
- DEFS += -DSTATICLIB -DUSE_UPNP=$(USE_UPNP)
+ DEFS += -DMINIUPNP_STATICLIB -DSTATICLIB -DUSE_UPNP=$(USE_UPNP)
 endif
 
-LIBS += -l kernel32 -l user32 -l gdi32 -l comdlg32 -l winspool -l winmm -l shell32 -l comctl32 -l ole32 -l oleaut32 -l uuid -l rpcrt4 -l advapi32 -l ws2_32 -l mswsock -l shlwapi
+# crypt32 and bcrypt are needed by OpenSSL 3
+LIBS += -l kernel32 -l user32 -l gdi32 -l comdlg32 -l winspool -l winmm -l shell32 -l comctl32 -l ole32 -l oleaut32 \
+ -l uuid -l rpcrt4 -l advapi32 -l ws2_32 -l mswsock -l shlwapi -l crypt32 -l bcrypt
 
 # TODO: make the mingw builds smarter about dependencies, like the linux/osx builds are
 HEADERS = $(wildcard *.h)
@@ -91,8 +107,6 @@ OBJS= \
     obj/kernel.o \
     obj/pbkdf2.o \
     obj/scrypt.o \
-    obj/scrypt-x86.o \
-    obj/scrypt-x86_64.o \
     obj/zerocoin/Accumulator.o \
     obj/zerocoin/AccumulatorProofOfKnowledge.o \
     obj/zerocoin/Coin.o \
@@ -106,40 +120,30 @@ OBJS= \
 
 all: 1337d.exe
 
-LIBS += $(CURDIR)/leveldb/libleveldb.a $(CURDIR)/leveldb/libmemenv.a
+# LevelDB first: it uses Windows libraries listed after it (static link order)
+LIBS := $(CURDIR)/leveldb/libleveldb.a $(CURDIR)/leveldb/libmemenv.a $(LIBS)
 DEFS += $(addprefix -I,$(CURDIR)/leveldb/include)
 DEFS += $(addprefix -I,$(CURDIR)/leveldb/helpers)
 OBJS += obj/txdb-leveldb.o
 leveldb/libleveldb.a:
-	cd leveldb; make; cd ..
+	cd leveldb && $(MAKE) TARGET_OS=NATIVE_WINDOWS CC="$(CC)" CXX="$(CXX)" libleveldb.a libmemenv.a
 obj/txdb-leveldb.o: leveldb/libleveldb.a
 
 obj/%.o: %.cpp $(HEADERS)
-	g++ -c $(CFLAGS) -o $@ $<
+	$(CXX) -c $(xCXXFLAGS) -o $@ $<
 
+# The X11 hash functions are plain C
 obj/%.o: %.c
-	$(CXX) -c $(xCXXFLAGS) -fpermissive -MMD -MF $(@:%.o=%.d) -o $@ $<
-	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
-	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-		-e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-			  
-	rm -f $(@:%.o=%.d)	
-	
+	$(CC) -c $(CFLAGS) -o $@ $<
+
 obj/zerocoin/%.o: zerocoin/%.cpp
-	g++ -c $(CFLAGS) -o $@ $<
-
-obj/scrypt-x86.o: scrypt-x86.S
-	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
-
-obj/scrypt-x86_64.o: scrypt-x86_64.S
-	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
+	$(CXX) -c $(xCXXFLAGS) -o $@ $<
 
 1337d.exe: $(OBJS:obj/%=obj/%)
-	g++ $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)
+	$(CXX) $(xCXXFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)
 
 clean:
-	-del /Q 1337d
-	-del /Q obj\*
-	-del /Q obj\zerocoin\*
+	-rm -f 1337d.exe
+	-rm -f obj/*.o obj/zerocoin/*.o
 	
 FORCE:

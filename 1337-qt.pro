@@ -1,11 +1,14 @@
 TEMPLATE = app
 TARGET = Elite-qt
-VERSION = 2.0.0.0
+VERSION = 3.0.1.0
 INCLUDEPATH += src src/json src/qt
 DEFINES += QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE
 CONFIG += no_include_pwd
 CONFIG += thread
 CONFIG += static
+CONFIG += c++17
+# OpenSSL 3 marks the EC_KEY API deprecated (it still works)
+QMAKE_CXXFLAGS += -Wno-deprecated-declarations
 greaterThan(QT_MAJOR_VERSION, 4) {
     QT += widgets
     DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0
@@ -26,10 +29,10 @@ MOC_DIR = build
 UI_DIR = build
 
 # use: qmake "RELEASE=1"
-contains(RELEASE, 1) {
-    # Mac: compile for maximum compatibility (10.5, 32-bit)
-    macx:QMAKE_CXXFLAGS += -mmacosx-version-min=10.5 -arch x86_64 -isysroot /Developer/SDKs/MacOSX10.5.sdk
+# Oldest macOS the wallet runs on
+macx:QMAKE_MACOSX_DEPLOYMENT_TARGET = 11.0
 
+contains(RELEASE, 1) {
     !windows:!macx {
         # Linux: static link
         LIBS += -Wl,-Bstatic
@@ -38,8 +41,12 @@ contains(RELEASE, 1) {
 
 !win32 {
 # for extra security against potential buffer overflows: enable GCCs Stack Smashing Protection
-QMAKE_CXXFLAGS *= -fstack-protector-all --param ssp-buffer-size=1
-QMAKE_LFLAGS *= -fstack-protector-all --param ssp-buffer-size=1
+QMAKE_CXXFLAGS *= -fstack-protector-all
+QMAKE_LFLAGS *= -fstack-protector-all
+!macx {
+    QMAKE_CXXFLAGS *= --param ssp-buffer-size=1
+    QMAKE_LFLAGS *= --param ssp-buffer-size=1
+}
 # We need to exclude this for Windows cross compile with MinGW 4.2.x, as it will result in a non-working executable!
 # This can be enabled for Windows, when we switch to MinGW >= 4.4.x.
 }
@@ -47,8 +54,9 @@ QMAKE_LFLAGS *= -fstack-protector-all --param ssp-buffer-size=1
 QMAKE_CXXFLAGS *= -D_FORTIFY_SOURCE=2
 # for extra security on Windows: enable ASLR and DEP via GCC linker flags
 win32:QMAKE_LFLAGS *= -Wl,--dynamicbase -Wl,--nxcompat
-# on Windows: enable GCC large address aware linker flag
-win32:QMAKE_LFLAGS *= -Wl,--large-address-aware -static
+win32:QMAKE_LFLAGS *= -static
+# --large-address-aware only exists for 32-bit Windows (64-bit builds always are)
+win32:contains(QT_ARCH, i386):QMAKE_LFLAGS *= -Wl,--large-address-aware
 # i686-w64-mingw32
 win32:QMAKE_LFLAGS *= -static-libgcc -static-libstdc++
 
@@ -71,7 +79,7 @@ contains(USE_UPNP, -) {
     count(USE_UPNP, 0) {
         USE_UPNP=1
     }
-    DEFINES += USE_UPNP=$$USE_UPNP STATICLIB
+    DEFINES += USE_UPNP=$$USE_UPNP STATICLIB MINIUPNP_STATICLIB
     INCLUDEPATH += $$MINIUPNPC_INCLUDE_PATH
     LIBS += $$join(MINIUPNPC_LIB_PATH,,-L,) -lminiupnpc
     win32:LIBS += -liphlpapi
@@ -114,7 +122,8 @@ SOURCES += src/txdb-leveldb.cpp \
     src/qt/stakereportdialoge.cpp
 !win32 {
     # we use QMAKE_CXXFLAGS_RELEASE even without RELEASE=1 because we use RELEASE to indicate linking preferences not -O preferences
-    genleveldb.commands = cd $$PWD/src/leveldb && CC=$$QMAKE_CC CXX=$$QMAKE_CXX $(MAKE) OPT=\"$$QMAKE_CXXFLAGS $$QMAKE_CXXFLAGS_RELEASE\" libleveldb.a libmemenv.a
+    # (CC/CXX quoted so wrappers like "ccache g++" work)
+    genleveldb.commands = cd $$PWD/src/leveldb && CC=\"$$QMAKE_CC\" CXX=\"$$QMAKE_CXX\" $(MAKE) OPT=\"$$QMAKE_CXXFLAGS $$QMAKE_CXXFLAGS_RELEASE\" libleveldb.a libmemenv.a
 } else {
     # make an educated guess about what the ranlib command is called
     isEmpty(QMAKE_RANLIB) {
@@ -400,8 +409,29 @@ OTHER_FILES += \
     doc/*.rst doc/*.txt doc/README README.md res/bitcoin-qt.rc
 
 # platform specific defaults, if not overridden on command line
+# macOS: Homebrew (brew install boost openssl@3 berkeley-db@5 miniupnpc qrencode qt@5)
+macx {
+    BREW_PREFIX = $$system(brew --prefix 2>/dev/null)
+    isEmpty(BREW_PREFIX): BREW_PREFIX = /opt/homebrew
+    isEmpty(BOOST_INCLUDE_PATH): BOOST_INCLUDE_PATH = $$BREW_PREFIX/opt/boost/include
+    isEmpty(BOOST_LIB_PATH): BOOST_LIB_PATH = $$BREW_PREFIX/opt/boost/lib
+    isEmpty(BDB_INCLUDE_PATH): BDB_INCLUDE_PATH = $$BREW_PREFIX/opt/berkeley-db@5/include
+    isEmpty(BDB_LIB_PATH): BDB_LIB_PATH = $$BREW_PREFIX/opt/berkeley-db@5/lib
+    isEmpty(OPENSSL_INCLUDE_PATH): OPENSSL_INCLUDE_PATH = $$BREW_PREFIX/opt/openssl@3/include
+    isEmpty(OPENSSL_LIB_PATH): OPENSSL_LIB_PATH = $$BREW_PREFIX/opt/openssl@3/lib
+    isEmpty(MINIUPNPC_INCLUDE_PATH): MINIUPNPC_INCLUDE_PATH = $$BREW_PREFIX/opt/miniupnpc/include
+    isEmpty(MINIUPNPC_LIB_PATH): MINIUPNPC_LIB_PATH = $$BREW_PREFIX/opt/miniupnpc/lib
+    isEmpty(QRENCODE_INCLUDE_PATH): QRENCODE_INCLUDE_PATH = $$BREW_PREFIX/opt/qrencode/include
+    isEmpty(QRENCODE_LIB_PATH): QRENCODE_LIB_PATH = $$BREW_PREFIX/opt/qrencode/lib
+    # Homebrew's Boost has had library names with and without -mt
+    isEmpty(BOOST_LIB_SUFFIX):exists($$BOOST_LIB_PATH/libboost_thread-mt.*): BOOST_LIB_SUFFIX = -mt
+    # (the UPnP section above ran before these defaults were set)
+    !contains(USE_UPNP, -) {
+        INCLUDEPATH += $$MINIUPNPC_INCLUDE_PATH
+        LIBS += -L$$MINIUPNPC_LIB_PATH
+    }
+}
 isEmpty(BOOST_LIB_SUFFIX) {
-    macx:BOOST_LIB_SUFFIX = -mt
     windows:BOOST_LIB_SUFFIX = -mt
 }
 
@@ -410,25 +440,6 @@ isEmpty(BOOST_THREAD_LIB_SUFFIX) {
     BOOST_THREAD_LIB_SUFFIX = $$BOOST_LIB_SUFFIX
 }
 
-isEmpty(BDB_LIB_PATH) {
-    macx:BDB_LIB_PATH = /opt/local/lib/db48
-}
-
-isEmpty(BDB_LIB_SUFFIX) {
-    macx:BDB_LIB_SUFFIX = -4.8
-}
-
-isEmpty(BDB_INCLUDE_PATH) {
-    macx:BDB_INCLUDE_PATH = /opt/local/include/db48
-}
-
-isEmpty(BOOST_LIB_PATH) {
-    macx:BOOST_LIB_PATH = /opt/local/lib
-}
-
-isEmpty(BOOST_INCLUDE_PATH) {
-    macx:BOOST_INCLUDE_PATH = /opt/local/include
-}
 
 windows:DEFINES += WIN32
 windows:RC_FILE = src/qt/res/bitcoin-qt.rc
@@ -457,11 +468,14 @@ macx:QMAKE_CXXFLAGS_THREAD += -pthread
 # Set libraries and includes at end, to use platform-defined defaults if not overridden
 INCLUDEPATH += $$BOOST_INCLUDE_PATH $$BDB_INCLUDE_PATH $$OPENSSL_INCLUDE_PATH $$QRENCODE_INCLUDE_PATH
 LIBS += $$join(BOOST_LIB_PATH,,-L,) $$join(BDB_LIB_PATH,,-L,) $$join(OPENSSL_LIB_PATH,,-L,) $$join(QRENCODE_LIB_PATH,,-L,)
-LIBS += -lssl -lcrypto -ldb_cxx$$BDB_LIB_SUFFIX
-# -lgdi32 has to happen after -lcrypto (see  #681)
-windows:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32
-LIBS += -lboost_system$$BOOST_LIB_SUFFIX -lboost_filesystem$$BOOST_LIB_SUFFIX -lboost_program_options$$BOOST_LIB_SUFFIX -lboost_thread$$BOOST_THREAD_LIB_SUFFIX
-windows:LIBS += -lboost_chrono$$BOOST_LIB_SUFFIX
+LIBS += -lssl -lcrypto -ldb_cxx$$BDB_LIB_SUFFIX -lz
+# -lgdi32 has to happen after -lcrypto (see  #681); crypt32 and bcrypt are needed by OpenSSL 3
+windows:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32 -lcrypt32 -lbcrypt
+# boost_system is header-only since Boost 1.69 and Boost 1.89 stopped shipping
+# the stub library; pass NO_BOOST_SYSTEM_LIB=1 when it doesn't exist.
+!contains(NO_BOOST_SYSTEM_LIB, 1):LIBS += -lboost_system$$BOOST_LIB_SUFFIX
+LIBS += -lboost_filesystem$$BOOST_LIB_SUFFIX -lboost_program_options$$BOOST_LIB_SUFFIX -lboost_thread$$BOOST_THREAD_LIB_SUFFIX
+LIBS += -lboost_chrono$$BOOST_LIB_SUFFIX
 
 contains(RELEASE, 1) {
     !windows:!macx {

@@ -1,0 +1,436 @@
+# Builds Elite (1337) on GitHub's build machines:
+#   Linux    1337d (daemon) and Elite-qt (wallet)        Ubuntu 24.04, x86_64
+#   Windows  1337d.exe and Elite-qt.exe, self-contained  MSYS2 MinGW-w64, x86_64
+#   macOS    1337d for Apple Silicon and Intel,
+#            Elite.app (in a .dmg) for Apple Silicon      Homebrew
+# Each daemon is smoke-tested after it's built (contrib/ci/smoke-test.sh).
+#
+# Every push keeps the binaries as downloadable "artifacts" on the run's page.
+# Pushing a version tag (e.g. v3.0.1.0) also publishes them as a GitHub release.
+
+name: Build
+
+# Documentation-only changes don't need new binaries (tag pushes always build)
+on:
+  push:
+    branches: [ master, modern-build ]
+    tags: [ 'v*' ]
+    paths-ignore: [ '**.md', 'doc/**', 'README', 'INSTALL', 'UPDATE-LOG' ]
+  pull_request:
+    paths-ignore: [ '**.md', 'doc/**', 'README', 'INSTALL', 'UPDATE-LOG' ]
+  workflow_dispatch:
+
+# A newer push to the same branch cancels a build that's still running;
+# release (tag) builds are never cancelled
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+permissions:
+  contents: read
+
+# ccache keeps compiled objects between runs, so only changed files are
+# recompiled. Libraries built here (Berkeley DB, qrencode) are cached by
+# version; bump the "-v1" in their cache keys after changing how they're built.
+env:
+  CCACHE_COMPILERCHECK: content
+  CCACHE_MAXSIZE: 500M
+  HOMEBREW_NO_AUTO_UPDATE: 1
+  HOMEBREW_NO_INSTALL_CLEANUP: 1
+  HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
+
+jobs:
+  linux-daemon:
+    name: Linux daemon
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libssl-dev libdb++-dev \
+            libboost-system-dev libboost-filesystem-dev libboost-program-options-dev \
+            libboost-thread-dev libboost-chrono-dev libminiupnpc-dev zlib1g-dev ccache
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ccache-linux-daemon-${{ github.sha }}
+          restore-keys: ccache-linux-daemon-
+
+      - name: Build 1337d
+        run: |
+          export CCACHE_DIR="$RUNNER_TEMP/ccache"
+          cd src
+          mkdir -p obj/zerocoin
+          # STATIC=1 links Boost, Berkeley DB, OpenSSL and miniupnpc statically
+          make -f makefile.unix -j"$(nproc)" USE_UPNP=1 STATIC=1 CXX="ccache g++" CC="ccache gcc"
+          strip 1337d
+          ccache -s
+
+      - name: Check the binary
+        run: |
+          file src/1337d
+          ldd src/1337d
+          if ldd src/1337d | grep -Ei 'boost|libdb|libssl|libcrypto|miniupnpc'; then
+            echo "1337d should not need the shared libraries listed above"; exit 1
+          fi
+
+      - name: Smoke test
+        run: contrib/ci/smoke-test.sh src/1337d
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 1337d-linux-x86_64
+          path: src/1337d
+
+  linux-qt:
+    name: Linux wallet
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libssl-dev libdb++-dev \
+            libboost-system-dev libboost-filesystem-dev libboost-program-options-dev \
+            libboost-thread-dev libboost-chrono-dev libminiupnpc-dev zlib1g-dev \
+            qtbase5-dev qttools5-dev-tools cmake ccache
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ccache-linux-qt-${{ github.sha }}
+          restore-keys: ccache-linux-qt-
+
+      - uses: actions/cache@v4
+        id: qrcache
+        with:
+          path: ${{ runner.temp }}/qrencode
+          key: linux-qrencode-4.1.1-ubuntu24.04-v1
+
+      # Ubuntu's libqrencode-dev has no static library, so build one
+      - name: Build static libqrencode
+        if: steps.qrcache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch v4.1.1 https://github.com/fukuchi/libqrencode.git "$RUNNER_TEMP/libqrencode"
+          cmake -S "$RUNNER_TEMP/libqrencode" -B "$RUNNER_TEMP/qrbuild" \
+            -DBUILD_SHARED_LIBS=OFF -DWITH_TOOLS=NO -DWITH_TESTS=NO -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/qrencode"
+          cmake --build "$RUNNER_TEMP/qrbuild" -j"$(nproc)"
+          cmake --install "$RUNNER_TEMP/qrbuild"
+
+      - name: Build Elite-qt
+        run: |
+          # RELEASE=1 links Boost, Berkeley DB, OpenSSL, miniupnpc, qrencode and
+          # zlib statically, so only Qt 5 and the C/C++ runtime come from the system
+          export CCACHE_DIR="$RUNNER_TEMP/ccache"
+          QMAKE=/usr/lib/qt5/bin/qmake
+          [ -x "$QMAKE" ] || QMAKE="qmake -qt=qt5"
+          $QMAKE RELEASE=1 USE_UPNP=1 USE_QRCODE=1 "CONFIG+=release" "CONFIG-=debug_and_release" \
+            "QMAKE_CC=ccache gcc" "QMAKE_CXX=ccache g++" "QMAKE_LINK=g++" \
+            "QRENCODE_INCLUDE_PATH=$RUNNER_TEMP/qrencode/include" "QRENCODE_LIB_PATH=$RUNNER_TEMP/qrencode/lib" \
+            1337-qt.pro
+          make -j"$(nproc)"
+          strip Elite-qt
+          ccache -s
+
+      - name: Check the binary
+        run: |
+          file Elite-qt
+          ldd Elite-qt
+          if ldd Elite-qt | grep -Ei 'boost|libdb|libssl|libcrypto|miniupnpc|qrencode'; then
+            echo "Elite-qt should not need the shared libraries listed above"; exit 1
+          fi
+
+      # Start the wallet without a screen (Qt's offscreen platform) and check
+      # it gets as far as loading the wallet and block index
+      - name: Start the wallet
+        run: |
+          D="$RUNNER_TEMP/qtdata"; mkdir -p "$D"
+          printf 'connect=127.0.0.1:1\nlisten=0\ndnsseed=0\nupnp=0\n' > "$D/1337.conf"
+          QT_QPA_PLATFORM=offscreen ./Elite-qt -datadir="$D" -min > qt.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 90); do
+            grep -q "Done loading" "$D/debug.log" 2>/dev/null && break
+            sleep 1
+          done
+          kill $PID 2>/dev/null || true
+          cat qt.log
+          tail -n 30 "$D/debug.log" || true
+          grep -q "Done loading" "$D/debug.log"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Elite-qt-linux-x86_64
+          path: Elite-qt
+
+  windows:
+    name: Windows daemon and wallet
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            make
+            git
+            diffutils
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-miniupnpc
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-qt5-static
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ccache
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ccache-windows-${{ github.sha }}
+          restore-keys: ccache-windows-
+
+      - uses: actions/cache@v4
+        id: depcache
+        with:
+          path: |
+            ${{ runner.temp }}/bdb-install
+            ${{ runner.temp }}/qrencode
+          key: windows-deps-bdb5.3.28-qrencode4.1.1-v1
+
+      # Berkeley DB 5.3 (Sleepycat license), the same version the Linux builds
+      # use. MSYS2 only ships 6.x, which is AGPL-licensed and a DLL.
+      - name: Build static Berkeley DB 5.3.28
+        if: steps.depcache.outputs.cache-hit != 'true'
+        run: |
+          T="$(cygpath -u "$RUNNER_TEMP")"
+          git clone --depth 1 --branch v5.3.28 https://github.com/berkeleydb/libdb.git "$T/bdb"
+          cd "$T/bdb"
+          # Rename a function that clashes with a GCC built-in
+          sed -i 's/__atomic_compare_exchange/__atomic_compare_exchange_db/g' src/dbinc/atomic.h
+          cd build_unix
+          # 2012-era C: build as C17 and relax GCC 14+'s stricter defaults
+          export CFLAGS="-O2 -std=gnu17 -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-implicit-function-declaration"
+          export CXXFLAGS="-O2"
+          ../dist/configure --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 \
+            --enable-mingw --enable-cxx --disable-shared --disable-replication \
+            --prefix="$T/bdb-install"
+          make -j"$(nproc)" libdb.a libdb_cxx.a
+          make install_lib install_include
+          ls "$T/bdb-install/lib" "$T/bdb-install/include"
+
+      # MSYS2 only ships qrencode as a DLL; build a static copy so the wallet
+      # stays a single self-contained .exe
+      - name: Build static libqrencode
+        if: steps.depcache.outputs.cache-hit != 'true'
+        run: |
+          T="$(cygpath -u "$RUNNER_TEMP")"
+          git clone --depth 1 --branch v4.1.1 https://github.com/fukuchi/libqrencode.git "$T/libqrencode"
+          cmake -S "$T/libqrencode" -B "$T/qrbuild" -G "MSYS Makefiles" \
+            -DBUILD_SHARED_LIBS=OFF -DWITH_TOOLS=NO -DWITH_TESTS=NO -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$T/qrencode"
+          cmake --build "$T/qrbuild" -j"$(nproc)"
+          cmake --install "$T/qrbuild"
+          ls "$T/qrencode/lib"
+
+      - name: Build LevelDB
+        run: |
+          export CCACHE_DIR="$(cygpath -m "$RUNNER_TEMP/ccache")"
+          cd src/leveldb
+          make TARGET_OS=NATIVE_WINDOWS -j"$(nproc)" CC="ccache gcc" CXX="ccache g++" libleveldb.a libmemenv.a
+
+      - name: Build 1337d.exe
+        run: |
+          BDB="$(cygpath -u "$RUNNER_TEMP/bdb-install")"
+          export CCACHE_DIR="$(cygpath -m "$RUNNER_TEMP/ccache")"
+          cd src
+          mkdir -p obj/zerocoin
+          make -f makefile.mingw -j"$(nproc)" CC="ccache gcc" CXX="ccache g++" \
+            BDB_INCLUDE_PATH="$BDB/include" BDB_LIB_PATH="$BDB/lib"
+          strip 1337d.exe
+
+      - name: Build Elite-qt.exe
+        run: |
+          QR="$(cygpath -m "$RUNNER_TEMP/qrencode")"
+          BDB="$(cygpath -m "$RUNNER_TEMP/bdb-install")"
+          export CCACHE_DIR="$(cygpath -m "$RUNNER_TEMP/ccache")"
+          # boost_system is header-only and newer Boost releases don't ship it
+          [ -f /mingw64/lib/libboost_system-mt.a ] || NOSYS="NO_BOOST_SYSTEM_LIB=1"
+          /mingw64/qt5-static/bin/qmake USE_UPNP=1 USE_QRCODE=1 $NOSYS "BOOST_LIB_SUFFIX=-mt" \
+            "CONFIG+=release" "CONFIG-=debug_and_release" \
+            "QMAKE_CC=ccache gcc" "QMAKE_CXX=ccache g++" "QMAKE_LINK=g++" \
+            "BDB_INCLUDE_PATH=$BDB/include" "BDB_LIB_PATH=$BDB/lib" \
+            "QRENCODE_INCLUDE_PATH=$QR/include" "QRENCODE_LIB_PATH=$QR/lib" 1337-qt.pro
+          make -j"$(nproc)"
+          ls release
+          strip release/Elite-qt.exe
+          ccache -s
+
+      # The .exe files must run on their own: fail if they need any DLL that
+      # isn't part of Windows itself
+      - name: Check the binaries are self-contained
+        run: |
+          for f in src/1337d.exe release/Elite-qt.exe; do
+            file "$f"
+            ldd "$f"
+            if ldd "$f" | grep '=>' | grep -vi '/c/windows/'; then
+              echo "$f depends on non-system DLLs (listed above)"; exit 1
+            fi
+          done
+
+      - name: Smoke test
+        run: contrib/ci/smoke-test.sh src/1337d.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 1337d-windows-x86_64
+          path: src/1337d.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Elite-qt-windows-x86_64
+          path: release/Elite-qt.exe
+
+  macos:
+    name: macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Homebrew's Qt 5 is only prebuilt for Apple Silicon on current
+          # macOS, so the wallet app is built there; Intel gets the daemon
+          - runner: macos-15
+            arch: arm64
+            gui: true
+          - runner: macos-15-intel
+            arch: x86_64
+            gui: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install boost openssl@3 berkeley-db@5 miniupnpc ccache
+          if [ "${{ matrix.gui }}" = "true" ]; then brew install qt@5 qrencode; fi
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ccache-macos-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: ccache-macos-${{ matrix.arch }}-
+
+      - name: Build 1337d
+        run: |
+          export CCACHE_DIR="$RUNNER_TEMP/ccache"
+          cd src
+          mkdir -p obj/zerocoin
+          # STATIC=1 links Homebrew's static libraries, so the binary runs on
+          # Macs without Homebrew
+          make -f makefile.osx -j"$(sysctl -n hw.ncpu)" STATIC=1 CXX="ccache clang++" CC="ccache clang"
+          strip 1337d
+          ccache -s
+
+      - name: Check the binary
+        run: |
+          file src/1337d
+          otool -L src/1337d
+          if otool -L src/1337d | tail -n +2 | grep -v -E '^\s+(/usr/lib/|/System/)'; then
+            echo "1337d should only link libraries that ship with macOS"; exit 1
+          fi
+
+      - name: Smoke test
+        run: contrib/ci/smoke-test.sh src/1337d
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 1337d-macos-${{ matrix.arch }}
+          path: src/1337d
+
+      - name: Build Elite.app
+        if: matrix.gui
+        run: |
+          export CCACHE_DIR="$RUNNER_TEMP/ccache"
+          QT="$(brew --prefix qt@5)"
+          "$QT/bin/qmake" USE_UPNP=1 USE_QRCODE=1 "CONFIG+=release" "CONFIG-=debug_and_release" \
+            "QMAKE_CC=ccache clang" "QMAKE_CXX=ccache clang++" "QMAKE_LINK=clang++" 1337-qt.pro
+          make -j"$(sysctl -n hw.ncpu)"
+          ccache -s
+
+      # Copy Qt and the other libraries into the app, sign it ad hoc (Apple
+      # Silicon refuses to run unsigned code) and pack it in a disk image
+      - name: Package Elite.app
+        if: matrix.gui
+        run: |
+          QT="$(brew --prefix qt@5)"
+          "$QT/bin/macdeployqt" Elite.app -verbose=1
+          codesign --force --deep --sign - Elite.app
+          codesign --verify --deep --strict Elite.app
+          otool -L Elite.app/Contents/MacOS/Elite
+          if otool -L Elite.app/Contents/MacOS/Elite | tail -n +2 | grep -E '/(opt|usr/local)/'; then
+            echo "Elite.app still links libraries outside the app (listed above)"; exit 1
+          fi
+          hdiutil create -volname Elite -srcfolder Elite.app -ov -format UDZO Elite-macos-arm64.dmg
+
+      # Start the app's binary without a screen and check it loads
+      - name: Start the wallet
+        if: matrix.gui
+        run: |
+          D="$RUNNER_TEMP/qtdata"; mkdir -p "$D"
+          printf 'connect=127.0.0.1:1\nlisten=0\ndnsseed=0\nupnp=0\n' > "$D/1337.conf"
+          QT_QPA_PLATFORM=offscreen Elite.app/Contents/MacOS/Elite -datadir="$D" -min > qt.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 90); do
+            grep -q "Done loading" "$D/debug.log" 2>/dev/null && break
+            sleep 1
+          done
+          kill $PID 2>/dev/null || true
+          cat qt.log
+          tail -n 30 "$D/debug.log" || true
+          grep -q "Done loading" "$D/debug.log"
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.gui
+        with:
+          name: Elite-macos-arm64
+          path: Elite-macos-arm64.dmg
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [ linux-daemon, linux-qt, windows, macos ]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Name the files for the release
+        run: |
+          mkdir release
+          cp artifacts/1337d-linux-x86_64/1337d            release/1337d-linux-x86_64
+          cp artifacts/Elite-qt-linux-x86_64/Elite-qt      release/Elite-qt-linux-x86_64
+          cp artifacts/1337d-windows-x86_64/1337d.exe      release/1337d-windows-x86_64.exe
+          cp artifacts/Elite-qt-windows-x86_64/Elite-qt.exe release/Elite-qt-windows-x86_64.exe
+          cp artifacts/1337d-macos-arm64/1337d             release/1337d-macos-arm64
+          cp artifacts/1337d-macos-x86_64/1337d            release/1337d-macos-x86_64
+          cp artifacts/Elite-macos-arm64/Elite-macos-arm64.dmg release/
+          chmod +x release/1337d-* release/Elite-qt-linux-x86_64
+          cd release && sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
