@@ -320,6 +320,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Homebrew's libraries are built for this runner's macOS version, so
+      # that's the oldest macOS the binaries can claim to run on
+      - name: Set the minimum macOS version
+        run: echo "MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion | cut -d. -f1).0" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: |
           brew install boost openssl@3 miniupnpc automake ccache
@@ -329,7 +334,7 @@ jobs:
         id: bdbcache
         with:
           path: ${{ runner.temp }}/bdb
-          key: macos-${{ matrix.arch }}-bdb5.3.28-v5
+          key: macos-${{ matrix.arch }}-bdb5.3.28-${{ env.MACOSX_DEPLOYMENT_TARGET }}-v5
 
       # Homebrew's berkeley-db@5 has no static libraries, so build Berkeley DB
       # 5.3 here (the same version as the other platforms)
@@ -346,7 +351,6 @@ jobs:
           AM="$(ls -d "$(brew --prefix automake)"/share/automake-* | head -n 1)"
           cp "$AM/config.guess" "$AM/config.sub" dist/
           cd build_unix
-          export MACOSX_DEPLOYMENT_TARGET=11.0
           # 2012-era C: build it as such (-std=gnu89) and relax Clang's newer
           # errors; otherwise configure's own test programs fail to compile and
           # it misdetects the platform. Leave the mutex type to configure: on
@@ -401,7 +405,7 @@ jobs:
         run: |
           export CCACHE_DIR="$RUNNER_TEMP/ccache"
           QT="$(brew --prefix qt@5)"
-          "$QT/bin/qmake" USE_UPNP=1 USE_QRCODE=1 "CONFIG+=release" "CONFIG-=debug_and_release" \
+          "$QT/bin/qmake" USE_UPNP=1 USE_QRCODE=1 "MACOS_MIN=$MACOSX_DEPLOYMENT_TARGET" "CONFIG+=release" "CONFIG-=debug_and_release" \
             "QMAKE_CC=ccache clang" "QMAKE_CXX=ccache clang++" "QMAKE_LINK=clang++" \
             "BDB_INCLUDE_PATH=$RUNNER_TEMP/bdb/include" "BDB_LIB_PATH=$RUNNER_TEMP/bdb/lib" 1337-qt.pro
           make -k -j"$(sysctl -n hw.ncpu)"

@@ -79,8 +79,9 @@ endif
 
 DEFS=-DMAC_OSX -DMSG_NOSIGNAL=0 -DBOOST_SPIRIT_THREADSAFE
 
-# The oldest macOS version the binary runs on
-MACOSX_DEPLOYMENT_TARGET ?= 11.0
+# The oldest macOS version the binary runs on. Homebrew's libraries are built
+# for the macOS they're installed on, so that's the default.
+MACOSX_DEPLOYMENT_TARGET ?= $(shell sw_vers -productVersion 2>/dev/null | cut -d. -f1).0
 export MACOSX_DEPLOYMENT_TARGET
 
 CFLAGS = -O2 -g -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)

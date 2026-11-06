@@ -29,8 +29,13 @@ MOC_DIR = build
 UI_DIR = build
 
 # use: qmake "RELEASE=1"
-# Oldest macOS the wallet runs on
-macx:QMAKE_MACOSX_DEPLOYMENT_TARGET = 11.0
+# Oldest macOS the wallet runs on. Homebrew's libraries are built for the
+# macOS they're installed on, so that's the default (qmake MACOS_MIN=... to
+# change it, if the libraries allow).
+macx {
+    isEmpty(MACOS_MIN): MACOS_MIN = $$system(sw_vers -productVersion | cut -d. -f1).0
+    QMAKE_MACOSX_DEPLOYMENT_TARGET = $$MACOS_MIN
+}
 
 contains(RELEASE, 1) {
     !windows:!macx {
@@ -473,6 +478,7 @@ LIBS += -lssl -lcrypto -ldb_cxx$$BDB_LIB_SUFFIX -lz
 windows:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32 -lcrypt32 -lbcrypt
 # boost_system is header-only since Boost 1.69 and Boost 1.89 stopped shipping
 # the stub library; pass NO_BOOST_SYSTEM_LIB=1 when it doesn't exist.
+!isEmpty(BOOST_LIB_PATH):!exists($$BOOST_LIB_PATH/libboost_system$${BOOST_LIB_SUFFIX}.*): NO_BOOST_SYSTEM_LIB = 1
 !contains(NO_BOOST_SYSTEM_LIB, 1):LIBS += -lboost_system$$BOOST_LIB_SUFFIX
 LIBS += -lboost_filesystem$$BOOST_LIB_SUFFIX -lboost_program_options$$BOOST_LIB_SUFFIX -lboost_thread$$BOOST_THREAD_LIB_SUFFIX
 LIBS += -lboost_chrono$$BOOST_LIB_SUFFIX
