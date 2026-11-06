@@ -329,7 +329,7 @@ jobs:
         id: bdbcache
         with:
           path: ${{ runner.temp }}/bdb
-          key: macos-${{ matrix.arch }}-bdb5.3.28-v4
+          key: macos-${{ matrix.arch }}-bdb5.3.28-v5
 
       # Homebrew's berkeley-db@5 has no static libraries, so build Berkeley DB
       # 5.3 here (the same version as the other platforms)
@@ -349,15 +349,15 @@ jobs:
           export MACOSX_DEPLOYMENT_TARGET=11.0
           # 2012-era C: build it as such (-std=gnu89) and relax Clang's newer
           # errors; otherwise configure's own test programs fail to compile and
-          # it misdetects the platform. Its mutex detection only
-          # knows 32-bit ARM, so use POSIX mutexes; process-private ones,
-          # because macOS can't share pthread mutexes between processes (the
-          # wallet opens its database environment private to the process).
+          # it misdetects the platform. Leave the mutex type to configure: on
+          # macOS it avoids pthread mutexes and picks spin locks (Apple
+          # Silicon) or x86-64 assembly (Intel), as Homebrew's build does.
+          # Forcing pthread mutexes made opening the database fail.
           CC=clang CXX=clang++ \
           CFLAGS="-O2 -std=gnu89 -Wno-error=implicit-int -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=incompatible-function-pointer-types -Wno-error=incompatible-pointer-types" \
           CXXFLAGS="-O2" \
             ../dist/configure --enable-cxx --disable-shared --disable-replication --with-pic \
-            --with-mutex=POSIX/pthreads/private --prefix="$RUNNER_TEMP/bdb"
+            --prefix="$RUNNER_TEMP/bdb"
           make -j"$(sysctl -n hw.ncpu)" libdb.a libdb_cxx.a
           make install_lib install_include
           ls "$RUNNER_TEMP/bdb/lib" "$RUNNER_TEMP/bdb/include"

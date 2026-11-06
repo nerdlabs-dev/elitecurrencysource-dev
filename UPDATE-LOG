@@ -2,6 +2,25 @@
 ===============
 
 
+v3.0.1.0
+
+Builds on current systems: OpenSSL 3, Boost 1.66 to 1.92, GCC 13+, Clang/Xcode, Qt 5.15, miniupnpc 2.2.8+
+Added - GitHub Actions builds for Linux, Windows and macOS (Apple Silicon and Intel)
+Faster sync - 500 blocks per getblocks request (was 50)
+Faster sync - sync peer is chosen and replaced when it stalls or disconnects (was the first peer to connect, forever)
+Faster sync - stall watchdog asks again after 60s without a new block, switches peer after two stalls
+Faster sync - blocks offered by the sync peer are requested immediately (no 2 minute retry delay)
+Faster sync - larger database cache by default (-dbcache=100)
+Memory - orphan blocks capped (-maxorphanblocksmib, default 40)
+Memory - getdata requests answered as the send buffer drains instead of all at once
+Memory - old block/transaction requests are forgotten; per-peer request queue capped
+Memory - orphan transaction pool limited to 1000
+Fix - key copies kept the wrong compressed flag; bad keys leaked memory
+Fix - MultiSend tried to send a transaction that failed to be created
+Fix - -testnet failed at startup (genesis block)
+Added - -blockbatchsize option
+
+
 v1.7.0.0
 
 Added checkpoints
