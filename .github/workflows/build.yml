@@ -461,14 +461,21 @@ jobs:
         run: |
           D="$RUNNER_TEMP/qtdata"; mkdir -p "$D"
           printf 'connect=127.0.0.1:1\nlisten=0\ndnsseed=0\nupnp=0\n' > "$D/1337.conf"
-          Elite.app/Contents/MacOS/Elite -datadir="$D" -min > qt.log 2>&1 &
+          # QT_DEBUG_PLUGINS explains any failure to load Qt's plugins
+          QT_DEBUG_PLUGINS=1 Elite.app/Contents/MacOS/Elite -datadir="$D" -min > qt.log 2>&1 &
           PID=$!
           for i in $(seq 1 90); do
             grep -q "Done loading" "$D/debug.log" 2>/dev/null && break
             sleep 1
           done
           kill $PID 2>/dev/null || true
-          cat qt.log
+          if ! grep -q "Done loading" "$D/debug.log" 2>/dev/null; then
+            cat qt.log
+            otool -L Elite.app/Contents/PlugIns/platforms/libqcocoa.dylib
+            otool -l Elite.app/Contents/PlugIns/platforms/libqcocoa.dylib | grep -A2 LC_RPATH || true
+            otool -L Elite.app/Contents/MacOS/Elite | grep -i qt
+            ls Elite.app/Contents/Frameworks
+          fi
           tail -n 30 "$D/debug.log" || true
           grep -q "Done loading" "$D/debug.log"
 
