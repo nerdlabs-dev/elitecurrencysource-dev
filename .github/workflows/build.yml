@@ -405,8 +405,27 @@ jobs:
         run: |
           export CCACHE_DIR="$RUNNER_TEMP/ccache"
           QT="$(brew --prefix qt@5)"
+          # Link Boost, OpenSSL, miniupnpc and qrencode statically, so only Qt
+          # has to be bundled into the app (macdeployqt misses the libraries
+          # Homebrew's Boost loads from each other, and the app crashed at
+          # start). The linker prefers a .dylib over a .a in the same folder,
+          # so give it a folder with only the static libraries.
+          S="$RUNNER_TEMP/staticlibs"; mkdir -p "$S"
+          for f in boost openssl@3 miniupnpc qrencode; do
+            L="$(brew --prefix $f)/lib"
+            if ls "$L"/*.a > /dev/null 2>&1; then
+              ln -sf "$L"/*.a "$S"/
+            else
+              # no static library: use the shared one (a direct dependency,
+              # which macdeployqt bundles)
+              echo "$f has no static library, linking it dynamically"
+              ln -sf "$L"/*.dylib "$S"/
+            fi
+          done
+          ls "$S"
           "$QT/bin/qmake" USE_UPNP=1 USE_QRCODE=1 "MACOS_MIN=$MACOSX_DEPLOYMENT_TARGET" "CONFIG+=release" "CONFIG-=debug_and_release" \
             "QMAKE_CC=ccache clang" "QMAKE_CXX=ccache clang++" "QMAKE_LINK=clang++" \
+            "BOOST_LIB_PATH=$S" "OPENSSL_LIB_PATH=$S" "MINIUPNPC_LIB_PATH=$S" "QRENCODE_LIB_PATH=$S" \
             "BDB_INCLUDE_PATH=$RUNNER_TEMP/bdb/include" "BDB_LIB_PATH=$RUNNER_TEMP/bdb/lib" 1337-qt.pro
           make -k -j"$(sysctl -n hw.ncpu)"
           ccache -s
@@ -421,9 +440,16 @@ jobs:
           codesign --force --deep --sign - Elite.app
           codesign --verify --deep --strict Elite.app
           otool -L Elite.app/Contents/MacOS/Elite
-          if otool -L Elite.app/Contents/MacOS/Elite | tail -n +2 | grep -E '/(opt|usr/local)/'; then
-            echo "Elite.app still links libraries outside the app (listed above)"; exit 1
+          if otool -L Elite.app/Contents/MacOS/Elite | tail -n +2 | grep -E 'boost|libssl|libcrypto|miniupnpc|libdb'; then
+            echo "Elite should link these statically (listed above)"; exit 1
           fi
+          # Every library in the app must only use system libraries or ones
+          # bundled in the app
+          BAD=0
+          while IFS= read -r f; do
+            if otool -L "$f" | tail -n +2 | grep -E '/(opt|usr/local)/'; then echo "  ^ in $f"; BAD=1; fi
+          done < <(find Elite.app -type f \( -name '*.dylib' -o -perm -u+x \) -exec sh -c 'file "$1" | grep -q Mach-O' _ {} \; -print)
+          [ "$BAD" = 0 ] || { echo "Elite.app uses libraries outside the app (listed above)"; exit 1; }
           hdiutil create -volname Elite -srcfolder Elite.app -ov -format UDZO Elite-macos-arm64.dmg
 
       # Start the app's binary without a screen and check it loads
