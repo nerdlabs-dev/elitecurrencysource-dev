@@ -18,7 +18,7 @@
 
 #ifdef Q_OS_MAC
 #include <ApplicationServices/ApplicationServices.h>
-extern bool qt_mac_execute_apple_script(const QString &script, AEDesc *ret);
+#include <QProcess>
 #endif
 
 // https://wiki.ubuntu.com/NotificationDevelopmentGuidelines recommends at least 128
@@ -269,7 +269,9 @@ void Notificator::notifyGrowl(Class cls, const QString &title, const QString &te
     quotedTitle.replace("\\", "\\\\").replace("\"", "\\");
     quotedText.replace("\\", "\\\\").replace("\"", "\\");
     QString growlApp(this->mode == Notificator::Growl13 ? "Growl" : "GrowlHelperApp");
-    qt_mac_execute_apple_script(script.arg(notificationApp, quotedTitle, quotedText, notificationIcon, growlApp), 0);
+    // Run the AppleScript with osascript (qt_mac_execute_apple_script was a
+    // private Qt 4 function and no longer exists)
+    QProcess::startDetached("osascript", QStringList() << "-e" << script.arg(notificationApp, quotedTitle, quotedText, notificationIcon, growlApp));
 }
 #endif
 

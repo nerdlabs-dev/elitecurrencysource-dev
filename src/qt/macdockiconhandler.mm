@@ -58,6 +58,9 @@ MacDockIconHandler::MacDockIconHandler() : QObject()
     this->setMainWindow(NULL);
 #if QT_VERSION < 0x050000
     qt_mac_set_dock_menu(this->m_dockMenu);
+#else
+    // Qt 5 replaced the private qt_mac_set_dock_menu with this
+    this->m_dockMenu->setAsDockMenu();
 #endif
     [pool release];
 }
