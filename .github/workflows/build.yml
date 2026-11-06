@@ -437,8 +437,8 @@ jobs:
         run: |
           QT="$(brew --prefix qt@5)"
           "$QT/bin/macdeployqt" Elite.app -verbose=1
-          codesign --force --deep --sign - Elite.app
-          codesign --verify --deep --strict Elite.app
+          # Copy in the libraries macdeployqt misses, and sign the app
+          contrib/macdeploy/fix-bundle.sh Elite.app
           otool -L Elite.app/Contents/MacOS/Elite
           if otool -L Elite.app/Contents/MacOS/Elite | tail -n +2 | grep -E 'boost|libssl|libcrypto|miniupnpc|libdb'; then
             echo "Elite should link these statically (listed above)"; exit 1
