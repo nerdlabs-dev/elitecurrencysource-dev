@@ -447,7 +447,9 @@ jobs:
           # bundled in the app
           BAD=0
           while IFS= read -r f; do
-            if otool -L "$f" | tail -n +2 | grep -E '/(opt|usr/local)/'; then echo "  ^ in $f"; BAD=1; fi
+            # (skip the library's own install name, which otool -L also lists)
+            ID="$(otool -D "$f" | tail -n +2)"
+            if otool -L "$f" | tail -n +2 | grep -vF "${ID:-no-install-name}" | grep -E '/(opt|usr/local)/'; then echo "  ^ in $f"; BAD=1; fi
           done < <(find Elite.app -type f \( -name '*.dylib' -o -perm -u+x \) -exec sh -c 'file "$1" | grep -q Mach-O' _ {} \; -print)
           [ "$BAD" = 0 ] || { echo "Elite.app uses libraries outside the app (listed above)"; exit 1; }
           hdiutil create -volname Elite -srcfolder Elite.app -ov -format UDZO Elite-macos-arm64.dmg
