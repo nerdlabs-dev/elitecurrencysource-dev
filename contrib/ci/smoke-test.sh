@@ -27,11 +27,14 @@ start() { # start <datadir>; runs in the background (-daemon isn't available on 
     CUR="$1"
     "$BIN" -datadir="$CUR" -conf="$CUR/1337.conf" -server > "$WORK/stdout.log" 2>&1 &
     PIDS+=($!)
+    local pid=$!
     for i in $(seq 1 120); do
         if cli getinfo > /dev/null 2>&1; then return 0; fi
+        kill -0 "$pid" 2>/dev/null || { echo "daemon exited during startup"; break; }
         sleep 1
     done
-    echo "daemon did not answer RPC within 2 minutes"; tail -n 50 "$CUR"/debug.log "$CUR"/testnet/debug.log 2>/dev/null || true
+    echo "daemon did not answer RPC"
+    tail -n 50 "$CUR"/debug.log "$CUR"/db.log "$CUR"/testnet/debug.log "$CUR"/testnet/db.log "$WORK/stdout.log" 2>/dev/null || true
     return 1
 }
 stop() {
