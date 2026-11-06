@@ -11,6 +11,11 @@
 #include <QDateTime>
 #include <QTimer>
 
+// boost::bind placeholders (_1, _2, ...) are only in the global namespace in
+// old Boost releases
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
+
 static const int64_t nClientStartupTime = GetTime();
 
 ClientModel::ClientModel(OptionsModel *optionsModel, QObject *parent) :
