@@ -329,7 +329,7 @@ jobs:
         id: bdbcache
         with:
           path: ${{ runner.temp }}/bdb
-          key: macos-${{ matrix.arch }}-bdb5.3.28-v1
+          key: macos-${{ matrix.arch }}-bdb5.3.28-v2
 
       # Homebrew's berkeley-db@5 has no static libraries, so build Berkeley DB
       # 5.3 here (the same version as the other platforms)
@@ -338,8 +338,10 @@ jobs:
         run: |
           git clone --depth 1 --branch v5.3.28 https://github.com/berkeleydb/libdb.git "$RUNNER_TEMP/bdbsrc"
           cd "$RUNNER_TEMP/bdbsrc"
-          # Rename a function that clashes with a compiler built-in
+          # Rename a function that clashes with a compiler built-in, and a macro
+          # that clashes with libc++'s <atomic>
           sed -i '' 's/__atomic_compare_exchange/__atomic_compare_exchange_db/g' src/dbinc/atomic.h
+          grep -rl 'atomic_init(' src | xargs sed -i '' 's/atomic_init(/atomic_init_db(/g'
           # Its 2013 config.guess/config.sub don't know Apple Silicon; use automake's
           AM="$(ls -d "$(brew --prefix automake)"/share/automake-* | head -n 1)"
           cp "$AM/config.guess" "$AM/config.sub" dist/
