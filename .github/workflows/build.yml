@@ -454,13 +454,14 @@ jobs:
           [ "$BAD" = 0 ] || { echo "Elite.app uses libraries outside the app (listed above)"; exit 1; }
           hdiutil create -volname Elite -srcfolder Elite.app -ov -format UDZO Elite-macos-arm64.dmg
 
-      # Start the app's binary without a screen and check it loads
+      # Start the packaged app (the runner has a desktop session; the app only
+      # bundles the native platform plugin) and check it loads
       - name: Start the wallet
         if: matrix.gui
         run: |
           D="$RUNNER_TEMP/qtdata"; mkdir -p "$D"
           printf 'connect=127.0.0.1:1\nlisten=0\ndnsseed=0\nupnp=0\n' > "$D/1337.conf"
-          QT_QPA_PLATFORM=offscreen Elite.app/Contents/MacOS/Elite -datadir="$D" -min > qt.log 2>&1 &
+          Elite.app/Contents/MacOS/Elite -datadir="$D" -min > qt.log 2>&1 &
           PID=$!
           for i in $(seq 1 90); do
             grep -q "Done loading" "$D/debug.log" 2>/dev/null && break
