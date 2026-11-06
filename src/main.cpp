@@ -3386,7 +3386,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                 printf("  got inventory: %s  %s\n", inv.ToString().c_str(), fAlreadyHave ? "have" : "new");
 
             if (!fAlreadyHave)
-                pfrom->AskFor(inv);
+            {
+                // Blocks offered by the peer we're syncing from are asked for
+                // straight away. Otherwise a block that was asked of another
+                // peer which never delivered it (disconnected, slow, broken)
+                // was held back for 2 minutes, stalling the whole download.
+                pfrom->AskFor(inv, inv.type == MSG_BLOCK && IsSyncNode(pfrom));
+            }
             else if (inv.type == MSG_BLOCK && mapOrphanBlocks.count(inv.hash)) {
                 pfrom->PushGetBlocks(pindexBest, GetOrphanRoot(mapOrphanBlocks[inv.hash]));
             } else if (nInv == nLastBlock) {

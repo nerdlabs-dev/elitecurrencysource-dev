@@ -329,7 +329,9 @@ public:
         }
     }
 
-    void AskFor(const CInv& inv)
+    // fImmediate: request it now even if another peer was asked for it
+    // recently (normally a retry waits 2 minutes after the last request)
+    void AskFor(const CInv& inv, bool fImmediate = false)
     {
         // Bound the per-peer request queue; a peer announcing more than this
         // is either broken or trying to use up our memory
@@ -350,7 +352,7 @@ public:
         nLastTime = nNow;
 
         // Each retry is 2 minutes after the last
-        nRequestTime = std::max(nRequestTime + 2 * 60 * 1000000, nNow);
+        nRequestTime = fImmediate ? nNow : std::max(nRequestTime + 2 * 60 * 1000000, nNow);
         mapAskFor.insert(std::make_pair(nRequestTime, inv));
     }
 
