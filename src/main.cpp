@@ -2770,7 +2770,11 @@ bool LoadBlockIndex(bool fAllowNew)
         block.hashMerkleRoot = block.BuildMerkleTree();
         block.nVersion = 1;
         block.nTime    = 1406297716;
-        block.nBits    = bnProofOfWorkLimit.GetCompact();
+        // Testnet shares the main network's genesis block (hashGenesisBlockTestNet
+        // is the same hash), so build it with the main network's PoW limit.
+        // Using the testnet limit gave a different hash and -testnet failed
+        // the genesis assertion on startup.
+        block.nBits    = CBigNum(~uint256(0) >> 20).GetCompact();
         block.nNonce   = !fTestNet ? 190271 : 190271;
 
         if (false && (block.GetHash() != hashGenesisBlock)) {
