@@ -74,7 +74,7 @@ jobs:
         run: |
           file src/1337d
           ldd src/1337d
-          if ldd src/1337d | grep -Ei 'boost|libdb|libssl|libcrypto|miniupnpc'; then
+          if ldd src/1337d | grep -E 'libboost|libdb_cxx|libdb-[0-9]|libssl|libcrypto\.|miniupnpc'; then
             echo "1337d should not need the shared libraries listed above"; exit 1
           fi
 
@@ -143,7 +143,8 @@ jobs:
         run: |
           file Elite-qt
           ldd Elite-qt
-          if ldd Elite-qt | grep -Ei 'boost|libdb|libssl|libcrypto|miniupnpc|qrencode'; then
+          # (libdbus is D-Bus, used by Qt, not Berkeley DB)
+          if ldd Elite-qt | grep -E 'libboost|libdb_cxx|libdb-[0-9]|libssl|libcrypto\.|miniupnpc|qrencode'; then
             echo "Elite-qt should not need the shared libraries listed above"; exit 1
           fi
 
@@ -329,7 +330,7 @@ jobs:
         id: bdbcache
         with:
           path: ${{ runner.temp }}/bdb
-          key: macos-${{ matrix.arch }}-bdb5.3.28-v2
+          key: macos-${{ matrix.arch }}-bdb5.3.28-v3
 
       # Homebrew's berkeley-db@5 has no static libraries, so build Berkeley DB
       # 5.3 here (the same version as the other platforms)
@@ -348,12 +349,14 @@ jobs:
           cd build_unix
           export MACOSX_DEPLOYMENT_TARGET=11.0
           # 2012-era C: relax Clang's newer errors. Its mutex detection only
-          # knows 32-bit ARM, so use POSIX mutexes.
+          # knows 32-bit ARM, so use POSIX mutexes; process-private ones,
+          # because macOS can't share pthread mutexes between processes (the
+          # wallet opens its database environment private to the process).
           CC=clang CXX=clang++ \
           CFLAGS="-O2 -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=incompatible-function-pointer-types -Wno-error=incompatible-pointer-types" \
           CXXFLAGS="-O2" \
             ../dist/configure --enable-cxx --disable-shared --disable-replication --with-pic \
-            --with-mutex=POSIX/pthreads --prefix="$RUNNER_TEMP/bdb"
+            --with-mutex=POSIX/pthreads/private --prefix="$RUNNER_TEMP/bdb"
           make -j"$(sysctl -n hw.ncpu)" libdb.a libdb_cxx.a
           make install_lib install_include
           ls "$RUNNER_TEMP/bdb/lib" "$RUNNER_TEMP/bdb/include"
