@@ -68,6 +68,11 @@ deque<pair<int64_t, CInv> > vRelayExpiration;
 CCriticalSection cs_mapRelay;
 map<CInv, int64_t> mapAlreadyAskedFor;
 
+// The peer we're downloading the block chain from (NULL if none). Only one
+// peer is asked for the chain at a time; others still announce new blocks.
+// Changed only while holding cs_vNodes.
+static CNode* pnodeSync = NULL;
+
 static deque<string> vOneShots;
 CCriticalSection cs_vOneShots;
 
@@ -94,6 +99,7 @@ void CNode::PushGetBlocks(CBlockIndex* pindexBegin, uint256 hashEnd)
         return;
     pindexLastGetBlocksBegin = pindexBegin;
     hashLastGetBlocksEnd = hashEnd;
+    nLastGetBlocksTime = GetTime();
 
     PushMessage("getblocks", CBlockLocator(pindexBegin), hashEnd);
 }
@@ -674,6 +680,10 @@ void ThreadSocketHandler2(void* parg)
                 {
                     // remove from vNodes
                     vNodes.erase(remove(vNodes.begin(), vNodes.end(), pnode), vNodes.end());
+
+                    // stop syncing from it; ThreadMessageHandler picks another peer
+                    if (pnode == pnodeSync)
+                        pnodeSync = NULL;
 
                     // release outbound grant (if any)
                     pnode->grantOutbound.Release();
@@ -1602,6 +1612,88 @@ void ThreadMessageHandler(void* parg)
     printf("ThreadMessageHandler exited\n");
 }
 
+// Client version a peer announced in its sub-version, e.g. "/ Elite:3.0.1/"
+// gives 30001 (major*10000 + minor*100 + revision); 0 if it can't be read
+static int PeerClientVersion(const CNode* pnode)
+{
+    const std::string& s = pnode->strSubVer;
+    size_t pos = s.rfind(':');
+    if (pos == std::string::npos)
+        return 0;
+    int nMajor = 0, nMinor = 0, nRevision = 0;
+    if (sscanf(s.c_str() + pos + 1, "%d.%d.%d", &nMajor, &nMinor, &nRevision) < 2)
+        return 0;
+    return nMajor * 10000 + nMinor * 100 + nRevision;
+}
+
+// Peers running 3.0.1 or newer announce 500 blocks per getblocks request
+// instead of 50, so prefer them; then the one furthest ahead; then the one we
+// heard from most recently
+static int64_t NodeSyncScore(const CNode* pnode)
+{
+    int64_t nScore = pnode->nLastRecv;
+    nScore += (int64_t)std::max(0, pnode->nStartingHeight) << 32;
+    if (PeerClientVersion(pnode) >= 30001)
+        nScore += (int64_t)1 << 62;   // outranks height and recency
+    return nScore;
+}
+
+bool IsSyncNode(const CNode* pnode)
+{
+    return pnode == pnodeSync;
+}
+
+void ReleaseSyncNode(CNode* pnode, int64_t nSeconds)
+{
+    pnode->nSyncAvoidUntil = GetTime() + nSeconds;
+    LOCK(cs_vNodes);
+    if (pnode == pnodeSync)
+        pnodeSync = NULL;   // ThreadMessageHandler picks a new one
+}
+
+// Pick the peer to download the block chain from. Called with cs_vNodes held.
+static void StartSync(const vector<CNode*>& vNodesIn)
+{
+    CNode* pnodeNewSync = NULL;
+    int64_t nBestScore = 0;
+    // Peers we recently gave up on (see ReleaseSyncNode) are only used if
+    // there's no one else
+    CNode* pnodeFallback = NULL;
+    int64_t nFallbackScore = 0;
+    int64_t nNow = GetTime();
+
+    BOOST_FOREACH(CNode* pnode, vNodesIn)
+    {
+        if (pnode->fDisconnect || !CanSyncFrom(pnode))
+            continue;
+        int64_t nScore = NodeSyncScore(pnode);
+        if (pnode->nSyncAvoidUntil > nNow)
+        {
+            if (pnodeFallback == NULL || nScore > nFallbackScore)
+            {
+                pnodeFallback = pnode;
+                nFallbackScore = nScore;
+            }
+            continue;
+        }
+        if (pnodeNewSync == NULL || nScore > nBestScore)
+        {
+            pnodeNewSync = pnode;
+            nBestScore = nScore;
+        }
+    }
+    if (pnodeNewSync == NULL)
+        pnodeNewSync = pnodeFallback;
+
+    if (pnodeNewSync)
+    {
+        printf("sync: downloading blocks from %s (%s, height %d)\n", pnodeNewSync->addrName.c_str(),
+               pnodeNewSync->strSubVer.c_str(), pnodeNewSync->nStartingHeight);
+        pnodeNewSync->fStartSync = true;
+        pnodeSync = pnodeNewSync;
+    }
+}
+
 void ThreadMessageHandler2(void* parg)
 {
     printf("ThreadMessageHandler started\n");
@@ -1614,19 +1706,34 @@ void ThreadMessageHandler2(void* parg)
             vNodesCopy = vNodes;
             BOOST_FOREACH(CNode* pnode, vNodesCopy)
                 pnode->AddRef();
+
+            // Pick a peer to download the chain from if we don't have one
+            if (pnodeSync == NULL)
+                StartSync(vNodesCopy);
         }
 
         // Poll the connected nodes for messages
         CNode* pnodeTrickle = NULL;
         if (!vNodesCopy.empty())
             pnodeTrickle = vNodesCopy[GetRand(vNodesCopy.size())];
+        // Whether any peer still has work queued once this round is done
+        bool fMoreWork = false;
         BOOST_FOREACH(CNode* pnode, vNodesCopy)
         {
             // Receive messages
             {
                 TRY_LOCK(pnode->cs_vRecv, lockRecv);
                 if (lockRecv)
+                {
+                    unsigned int nRecvBefore = pnode->vRecv.size();
                     ProcessMessages(pnode);
+                    // Something was processed and more is waiting, or blocks
+                    // it asked for are still to be sent: go round again
+                    // straight away instead of sleeping
+                    if ((pnode->vRecv.size() != nRecvBefore && !pnode->vRecv.empty()) ||
+                        (!pnode->vRecvGetData.empty() && pnode->vSend.size() < SendBufferSize()))
+                        fMoreWork = true;
+                }
             }
             if (fShutdown)
                 return;
@@ -1647,11 +1754,12 @@ void ThreadMessageHandler2(void* parg)
                 pnode->Release();
         }
 
-        // Wait and allow messages to bunch up.
+        // Wait and allow messages to bunch up, unless there's more to do now
+        // (during sync, sleeping 100ms between every round slowed the download).
         // Reduce vnThreadsRunning so StopNode has permission to exit while
         // we're sleeping, but we must always check fShutdown after doing this.
         vnThreadsRunning[THREAD_MESSAGEHANDLER]--;
-        MilliSleep(100);
+        MilliSleep(fMoreWork ? 1 : 100);
         if (fRequestShutdown)
             StartShutdown();
         vnThreadsRunning[THREAD_MESSAGEHANDLER]++;

@@ -64,6 +64,7 @@ CMedianFilter<int> cPeerBlockCounts(5, 0); // Amount of blocks that other nodes 
 
 map<uint256, CBlock*> mapOrphanBlocks;
 multimap<uint256, CBlock*> mapOrphanBlocksByPrev;
+static size_t nOrphanBlocksSize = 0; // memory used by the blocks in mapOrphanBlocks (serialized size)
 set<pair<COutPoint, unsigned int> > setStakeSeenOrphan;
 
 map<uint256, CTransaction> mapOrphanTransactions;
@@ -2381,6 +2382,56 @@ bool CBlockIndex::IsSuperMajority(int minVersion, const CBlockIndex* pstart, uns
     return (nFound >= nRequired);
 }
 
+// Remove one orphan block from the holding area and free it
+static void EraseOrphanBlock(CBlock* pblockOrphan)
+{
+    uint256 hash = pblockOrphan->GetHash();
+    for (multimap<uint256, CBlock*>::iterator mi = mapOrphanBlocksByPrev.lower_bound(pblockOrphan->hashPrevBlock);
+         mi != mapOrphanBlocksByPrev.upper_bound(pblockOrphan->hashPrevBlock); ++mi)
+    {
+        if (mi->second == pblockOrphan)
+        {
+            mapOrphanBlocksByPrev.erase(mi);
+            break;
+        }
+    }
+    mapOrphanBlocks.erase(hash);
+    if (pblockOrphan->IsProofOfStake())
+        setStakeSeenOrphan.erase(pblockOrphan->GetProofOfStake());
+    size_t nSize = ::GetSerializeSize(*pblockOrphan, SER_NETWORK, PROTOCOL_VERSION);
+    nOrphanBlocksSize -= std::min(nSize, nOrphanBlocksSize);
+    delete pblockOrphan;
+}
+
+// Keep the orphan block pool under -maxorphanblocksmib. Nothing limited it
+// before, so out-of-order blocks during sync (or a peer sending junk with
+// unknown parents) could take up any amount of memory. A random orphan that
+// no other orphan builds on is dropped first, so chains being assembled stay
+// intact; anything dropped is simply downloaded again later.
+static void PruneOrphanBlocks()
+{
+    size_t nMaxSize = (size_t)std::max((int64_t)1, GetArg("-maxorphanblocksmib", DEFAULT_MAX_ORPHAN_BLOCKS_MIB)) * 1024 * 1024;
+    while (nOrphanBlocksSize > nMaxSize && !mapOrphanBlocks.empty())
+    {
+        // Pick a random orphan block...
+        map<uint256, CBlock*>::iterator it = mapOrphanBlocks.lower_bound(GetRandHash());
+        if (it == mapOrphanBlocks.end())
+            it = mapOrphanBlocks.begin();
+        CBlock* pblockOrphan = it->second;
+        // ...and while other orphans build on it, move to one of those
+        while (true)
+        {
+            multimap<uint256, CBlock*>::iterator mi = mapOrphanBlocksByPrev.find(pblockOrphan->GetHash());
+            if (mi == mapOrphanBlocksByPrev.end())
+                break;
+            pblockOrphan = mi->second;
+        }
+        printf("PruneOrphanBlocks: dropping orphan %s (orphan pool %" PRIszu " bytes)\n",
+               pblockOrphan->GetHash().ToString().substr(0,20).c_str(), nOrphanBlocksSize);
+        EraseOrphanBlock(pblockOrphan);
+    }
+}
+
 bool ProcessBlock(CNode* pfrom, CBlock* pblock)
 {
     // Check for duplicate
@@ -2448,6 +2499,10 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
         }
         mapOrphanBlocks.insert(make_pair(hash, pblock2));
         mapOrphanBlocksByPrev.insert(make_pair(pblock2->hashPrevBlock, pblock2));
+        nOrphanBlocksSize += ::GetSerializeSize(*pblock2, SER_NETWORK, PROTOCOL_VERSION);
+        PruneOrphanBlocks();
+        if (!mapOrphanBlocks.count(hash))
+            return true; // it was the one pruned; it'll be fetched again with its parents
 
         // Ask this guy to fill in what we're missing
         if (pfrom)
@@ -2480,6 +2535,8 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
                 vWorkQueue.push_back(pblockOrphan->GetHash());
             mapOrphanBlocks.erase(pblockOrphan->GetHash());
             setStakeSeenOrphan.erase(pblockOrphan->GetProofOfStake());
+            size_t nSize = ::GetSerializeSize(*pblockOrphan, SER_NETWORK, PROTOCOL_VERSION);
+            nOrphanBlocksSize -= std::min(nSize, nOrphanBlocksSize);
             delete pblockOrphan;
         }
         mapOrphanBlocksByPrev.erase(hashPrev);
@@ -3009,6 +3066,79 @@ bool static AlreadyHave(CTxDB& txdb, const CInv& inv)
 // a large 4-byte int at any alignment.
 unsigned char pchMessageStart[4] = { 0x5a, 0xc3, 0x82, 0xd3 };
 
+// Answer queued getdata requests, stopping once the send buffer is full; the
+// rest are answered on later rounds as the peer reads what we've sent.
+// Requests used to be answered all at once, so a single getdata for thousands
+// of blocks read them all from disk into memory together.
+void static ProcessGetData(CNode* pfrom)
+{
+    LOCK(cs_main);
+    std::deque<CInv>::iterator it = pfrom->vRecvGetData.begin();
+    while (it != pfrom->vRecvGetData.end())
+    {
+        // Don't bother if send buffer is too full to respond anyway
+        if (pfrom->vSend.size() >= SendBufferSize())
+            break;
+        if (fShutdown)
+            break;
+
+        const CInv &inv = *it;
+        it++;
+
+        if (inv.type == MSG_BLOCK)
+        {
+            // Send block from disk
+            map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(inv.hash);
+            if (mi != mapBlockIndex.end())
+            {
+                CBlock block;
+                block.ReadFromDisk((*mi).second);
+                pfrom->PushMessage("block", block);
+
+                // Trigger them to send a getblocks request for the next batch of inventory
+                if (inv.hash == pfrom->hashContinue)
+                {
+                    // ppcoin: send latest proof-of-work block to allow the
+                    // download node to accept as orphan (proof-of-stake
+                    // block might be rejected by stake connection check)
+                    vector<CInv> vInv;
+                    vInv.push_back(CInv(MSG_BLOCK, GetLastBlockIndex(pindexBest, false)->GetBlockHash()));
+                    pfrom->PushMessage("inv", vInv);
+                    pfrom->hashContinue = 0;
+                }
+            }
+        }
+        else if (inv.IsKnownType())
+        {
+            // Send stream from relay memory
+            bool pushed = false;
+            {
+                LOCK(cs_mapRelay);
+                map<CInv, CDataStream>::iterator mi = mapRelay.find(inv);
+                if (mi != mapRelay.end()) {
+                    pfrom->PushMessage(inv.GetCommand(), (*mi).second);
+                    pushed = true;
+                }
+            }
+            if (!pushed && inv.type == MSG_TX) {
+                LOCK(mempool.cs);
+                if (mempool.exists(inv.hash)) {
+                    CTransaction tx = mempool.lookup(inv.hash);
+                    CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+                    ss.reserve(1000);
+                    ss << tx;
+                    pfrom->PushMessage("tx", ss);
+                }
+            }
+        }
+
+
+        // Track requests for our stuff
+        Inventory(inv.hash);
+    }
+    pfrom->vRecvGetData.erase(pfrom->vRecvGetData.begin(), it);
+}
+
 bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 {
     static map<CService, CPubKey> mapReuseKey;
@@ -3109,16 +3239,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             }
         }
 
-        // Ask the first connected node for block updates
-        static int nAskedForBlocks = 0;
-        if (!pfrom->fClient && !pfrom->fOneShot &&
-            (pfrom->nStartingHeight > (nBestHeight - 144)) &&
-            (pfrom->nVersion < NOBLKS_VERSION_START || pfrom->nVersion > (GetAdjustedTime() > FORK_TIME6 ? NOBLKS_VERSION_END_FORK : NOBLKS_VERSION_END)) &&
-             (nAskedForBlocks < 1 || vNodes.size() <= 1))
-        {
-            nAskedForBlocks++;
-            pfrom->PushGetBlocks(pindexBest, uint256(0));
-        }
+        // Block download: the peer to sync from is picked (and asked for
+        // blocks) by ThreadMessageHandler once version handshakes are done,
+        // see StartSync() in net.cpp. It used to be whichever peer connected
+        // first, for good, even if it was slow or stopped answering.
 
         // Relay alerts
         {
@@ -3289,63 +3413,12 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         if (fDebugNet || (vInv.size() != 1))
             printf("received getdata (%" PRIszu " invsz)\n", vInv.size());
 
-        BOOST_FOREACH(const CInv& inv, vInv)
-        {
-            if (fShutdown)
-                return true;
-            if (fDebugNet || (vInv.size() == 1))
+        if (fDebugNet || (vInv.size() == 1))
+            BOOST_FOREACH(const CInv& inv, vInv)
                 printf("received getdata for: %s\n", inv.ToString().c_str());
 
-            if (inv.type == MSG_BLOCK)
-            {
-                // Send block from disk
-                map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(inv.hash);
-                if (mi != mapBlockIndex.end())
-                {
-                    CBlock block;
-                    block.ReadFromDisk((*mi).second);
-                    pfrom->PushMessage("block", block);
-
-                    // Trigger them to send a getblocks request for the next batch of inventory
-                    if (inv.hash == pfrom->hashContinue)
-                    {
-                        // ppcoin: send latest proof-of-work block to allow the
-                        // download node to accept as orphan (proof-of-stake
-                        // block might be rejected by stake connection check)
-                        vector<CInv> vInv;
-                        vInv.push_back(CInv(MSG_BLOCK, GetLastBlockIndex(pindexBest, false)->GetBlockHash()));
-                        pfrom->PushMessage("inv", vInv);
-                        pfrom->hashContinue = 0;
-                    }
-                }
-            }
-            else if (inv.IsKnownType())
-            {
-                // Send stream from relay memory
-                bool pushed = false;
-                {
-                    LOCK(cs_mapRelay);
-                    map<CInv, CDataStream>::iterator mi = mapRelay.find(inv);
-                    if (mi != mapRelay.end()) {
-                        pfrom->PushMessage(inv.GetCommand(), (*mi).second);
-                        pushed = true;
-                    }
-                }
-                if (!pushed && inv.type == MSG_TX) {
-                    LOCK(mempool.cs);
-                    if (mempool.exists(inv.hash)) {
-                        CTransaction tx = mempool.lookup(inv.hash);
-                        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-                        ss.reserve(1000);
-                        ss << tx;
-                        pfrom->PushMessage("tx", ss);
-                    }
-                }
-            }
-
-            // Track requests for our stuff
-            Inventory(inv.hash);
-        }
+        pfrom->vRecvGetData.insert(pfrom->vRecvGetData.end(), vInv.begin(), vInv.end());
+        ProcessGetData(pfrom);
     }
 
 
@@ -3361,7 +3434,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         // Send the rest of the chain
         if (pindex)
             pindex = pindex->pnext;
-        int nLimit = 50;
+        // Was 50 blocks per request, which made a syncing peer go back and
+        // forth ten times as often as the 500 Bitcoin and PPCoin use
+        int nLimit = (int)std::max((int64_t)1, std::min((int64_t)2000, GetArg("-blockbatchsize", DEFAULT_BLOCK_BATCH_SIZE)));
         printf("getblocks %d to %s limit %d\n", (pindex ? pindex->nHeight : -1), hashStop.ToString().substr(0,20).c_str(), nLimit);
         for (; pindex; pindex = pindex->pnext)
         {
@@ -3666,6 +3741,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
 bool ProcessMessages(CNode* pfrom)
 {
+    // Carry on answering earlier getdata requests first
+    if (!pfrom->vRecvGetData.empty())
+        ProcessGetData(pfrom);
+
     CDataStream& vRecv = pfrom->vRecv;
     if (vRecv.empty())
         return true;
@@ -3685,6 +3764,11 @@ bool ProcessMessages(CNode* pfrom)
     {
         // Don't bother if send buffer is too full to respond anyway
         if (pfrom->vSend.size() >= SendBufferSize())
+            break;
+
+        // Answer queued getdata requests before reading new messages, so
+        // replies go out in the order they were asked for
+        if (!pfrom->vRecvGetData.empty())
             break;
 
         // Scan for message start
@@ -3786,6 +3870,18 @@ bool ProcessMessages(CNode* pfrom)
 }
 
 
+bool CanSyncFrom(const CNode* pnode)
+{
+    // Same conditions as before for asking a peer for blocks: a full node,
+    // not a one-shot connection, not far behind us, and a version that serves
+    // blocks
+    return !pnode->fClient && !pnode->fOneShot && pnode->nVersion != 0 &&
+           pnode->fSuccessfullyConnected &&
+           (pnode->nStartingHeight > (nBestHeight - 144)) &&
+           (pnode->nVersion < NOBLKS_VERSION_START ||
+            pnode->nVersion > (GetAdjustedTime() > FORK_TIME6 ? NOBLKS_VERSION_END_FORK : NOBLKS_VERSION_END));
+}
+
 bool SendMessages(CNode* pto, bool fSendTrickle)
 {
     TRY_LOCK(cs_main, lockMain);
@@ -3802,6 +3898,71 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
                 pto->PushMessage("ping", nonce);
             else
                 pto->PushMessage("ping");
+        }
+
+        // Start block download from the peer picked as sync peer (StartSync in
+        // net.cpp). It always gets the request, even if we asked it the same
+        // thing before.
+        if (pto->fStartSync)
+        {
+            pto->fStartSync = false;
+            pto->pindexLastGetBlocksBegin = NULL;
+            pto->hashLastGetBlocksEnd = 0;
+            pto->PushGetBlocks(pindexBest, uint256(0));
+        }
+
+        // Sync stall watchdog. If we're still catching up (or this peer said it
+        // was ahead of us), we already asked it for blocks, and no new block has
+        // arrived for SYNC_STALL_TIMEOUT seconds, the answer was probably lost.
+        // PushGetBlocks drops a request identical to the last one, so this
+        // used to wait until someone mined a new block. Ask again, and if the
+        // sync peer stays stuck, switch to another peer.
+        if (pto->pindexLastGetBlocksBegin != NULL &&
+            (pto->nStartingHeight > nBestHeight || IsInitialBlockDownload()))
+        {
+            int64_t nNow = GetTime();
+            if (nNow - nTimeBestReceived > SYNC_STALL_TIMEOUT &&
+                nNow - pto->nLastGetBlocksTime > SYNC_STALL_TIMEOUT)
+            {
+                // Count firings in a row without progress
+                pto->nSyncStalls = (pto->nSyncStallHeight == nBestHeight) ? pto->nSyncStalls + 1 : 1;
+                pto->nSyncStallHeight = nBestHeight;
+
+                if (IsSyncNode(pto) && pto->nSyncStalls >= SYNC_STALLS_BEFORE_SWITCH)
+                {
+                    // Still stuck after asking again: download from another peer
+                    // instead, and leave this one alone for 10 minutes
+                    printf("sync stalled at height %d with %s %d times, switching peer\n",
+                           nBestHeight, pto->addrName.c_str(), pto->nSyncStalls);
+                    pto->nSyncStalls = 0;
+                    pto->nLastGetBlocksTime = nNow;
+                    ReleaseSyncNode(pto, 10 * 60);
+                }
+                else
+                {
+                    printf("sync stalled at height %d (peer %s reported %d), asking again\n",
+                           nBestHeight, pto->addrName.c_str(), pto->nStartingHeight);
+                    pto->pindexLastGetBlocksBegin = NULL;
+                    pto->hashLastGetBlocksEnd = 0;
+                    pto->PushGetBlocks(pindexBest, uint256(0));
+                }
+            }
+        }
+
+        // Forget requests older than 15 minutes. Entries for things that never
+        // arrived stayed in mapAlreadyAskedFor forever.
+        static int64_t nLastAskedForPrune = 0;
+        if (GetTime() - nLastAskedForPrune > 5 * 60)
+        {
+            nLastAskedForPrune = GetTime();
+            int64_t nCutoff = (GetTime() - 15 * 60) * 1000000;
+            for (map<CInv, int64_t>::iterator mi = mapAlreadyAskedFor.begin(); mi != mapAlreadyAskedFor.end(); )
+            {
+                if (mi->second < nCutoff)
+                    mapAlreadyAskedFor.erase(mi++);
+                else
+                    ++mi;
+            }
         }
 
         // Resend wallet transactions that haven't gotten in a block yet

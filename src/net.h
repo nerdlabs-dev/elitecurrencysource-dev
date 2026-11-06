@@ -26,6 +26,9 @@ extern int nBestHeight;
 
 
 
+/** Most requests we'll queue for one peer (mapAskFor) */
+static const unsigned int MAPASKFOR_MAX_SZ = 50000;
+
 inline unsigned int ReceiveBufferSize() { return 1000*GetArg("-maxreceivebuffer", 5*1000); }
 inline unsigned int SendBufferSize() { return 1000*GetArg("-maxsendbuffer", 1*1000); }
 
@@ -37,6 +40,10 @@ CNode* FindNode(const CNetAddr& ip);
 CNode* FindNode(const CService& ip);
 CNode* ConnectNode(CAddress addrConnect, const char *strDest = NULL);
 void MapPort();
+/** Is this the peer we're downloading the chain from? */
+bool IsSyncNode(const CNode* pnode);
+/** Stop downloading from this peer and pick another (it's skipped for nSeconds) */
+void ReleaseSyncNode(CNode* pnode, int64_t nSeconds);
 unsigned short GetListenPort();
 bool BindListenPort(const CService &bindAddr, std::string& strError=REF(std::string()));
 void StartNode(void* parg);
@@ -191,7 +198,17 @@ public:
     uint256 hashContinue;
     CBlockIndex* pindexLastGetBlocksBegin;
     uint256 hashLastGetBlocksEnd;
+    int64_t nLastGetBlocksTime; // when we last sent this peer a getblocks request
+    int nSyncStalls;            // stall watchdog firings in a row at the same height
+    int nSyncStallHeight;       // our height at the last firing
+    int64_t nSyncAvoidUntil;    // don't pick this peer to sync from before this time
+    bool fStartSync;            // chosen as sync peer; send it getblocks next time round
     int nStartingHeight;
+
+    // getdata requests still to be answered. Served as the send buffer drains
+    // instead of all at once, so one request for thousands of blocks can't
+    // load them all into memory together.
+    std::deque<CInv> vRecvGetData;
 
     // flood relay
     std::vector<CAddress> vAddrToSend;
@@ -230,6 +247,11 @@ public:
         hashContinue = 0;
         pindexLastGetBlocksBegin = 0;
         hashLastGetBlocksEnd = 0;
+        nLastGetBlocksTime = 0;
+        nSyncStalls = 0;
+        nSyncStallHeight = -1;
+        nSyncAvoidUntil = 0;
+        fStartSync = false;
         nStartingHeight = -1;
         fGetAddr = false;
         nMisbehavior = 0;
@@ -309,6 +331,11 @@ public:
 
     void AskFor(const CInv& inv)
     {
+        // Bound the per-peer request queue; a peer announcing more than this
+        // is either broken or trying to use up our memory
+        if (mapAskFor.size() > MAPASKFOR_MAX_SZ)
+            return;
+
         // We're using mapAskFor as a priority queue,
         // the key is the earliest time the request can be sent
         int64_t& nRequestTime = mapAlreadyAskedFor[inv];

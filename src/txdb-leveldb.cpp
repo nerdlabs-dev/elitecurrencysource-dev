@@ -25,11 +25,22 @@ using namespace boost;
 
 leveldb::DB *txdb; // global pointer for LevelDB object instance
 
+// Default for -dbcache, in MiB. 25 MiB went to the read cache alone and
+// LevelDB's 4 MiB default write buffer was left, so during sync the database
+// was compacting constantly.
+static const int DEFAULT_DB_CACHE_MIB = 100;
+
 static leveldb::Options GetOptions() {
     leveldb::Options options;
-    int nCacheSizeMB = GetArg("-dbcache", 25);
-    options.block_cache = leveldb::NewLRUCache(nCacheSizeMB * 1048576);
+    int64_t nCacheSize = std::max((int64_t)4, GetArg("-dbcache", DEFAULT_DB_CACHE_MIB)) * 1048576;
+    // Half for reading, a quarter for each of the (up to two) write buffers
+    options.block_cache = leveldb::NewLRUCache(nCacheSize / 2);
+    options.write_buffer_size = nCacheSize / 4;
     options.filter_policy = leveldb::NewBloomFilterPolicy(10);
+#if defined(WIN32) || defined(MAC_OSX) || defined(__APPLE__)
+    // Windows and macOS have low per-process open file limits by default
+    options.max_open_files = 64;
+#endif
     return options;
 }
 
@@ -78,9 +89,8 @@ CTxDB::CTxDB(const char* pszMode)
 
     bool fCreate = strchr(pszMode, 'c');
 
-    options = GetOptions();
+    options = GetOptions(); // already sets filter_policy (it was created twice, leaking one)
     options.create_if_missing = fCreate;
-    options.filter_policy = leveldb::NewBloomFilterPolicy(10);
 
     init_blockindex(options); // Init directory
     pdb = txdb;

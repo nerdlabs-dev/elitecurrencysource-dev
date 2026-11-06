@@ -31,7 +31,17 @@ static const int LAST_POW_BLOCK = 17280;
 static const unsigned int MAX_BLOCK_SIZE = 1000000;
 static const unsigned int MAX_BLOCK_SIZE_GEN = MAX_BLOCK_SIZE/2;
 static const unsigned int MAX_BLOCK_SIGOPS = MAX_BLOCK_SIZE/50;
-static const unsigned int MAX_ORPHAN_TRANSACTIONS = MAX_BLOCK_SIZE/100;
+// Orphan transactions are capped at 5000 bytes each, so this keeps the pool
+// under 5 MB (it was MAX_BLOCK_SIZE/100 = 10000, up to 50 MB)
+static const unsigned int MAX_ORPHAN_TRANSACTIONS = 1000;
+/** Default limit on memory used by orphan blocks, in MiB (-maxorphanblocksmib) */
+static const unsigned int DEFAULT_MAX_ORPHAN_BLOCKS_MIB = 40;
+/** Default number of blocks announced per getblocks request (-blockbatchsize) */
+static const int DEFAULT_BLOCK_BATCH_SIZE = 500;
+/** Seconds without a new block (while a peer is ahead of us) before sync asks again */
+static const int64_t SYNC_STALL_TIMEOUT = 60;
+/** Stall watchdog firings in a row (at the same height) before switching to another sync peer */
+static const int SYNC_STALLS_BEFORE_SWITCH = 2;
 static const unsigned int MAX_INV_SZ = 50000;
 static const int64_t MIN_TX_FEE = 10000;
 static const int64_t MIN_RELAY_TX_FEE = MIN_TX_FEE;
@@ -128,6 +138,8 @@ void PrintBlockTree();
 CBlockIndex* FindBlockByHeight(int nHeight);
 bool ProcessMessages(CNode* pfrom);
 bool SendMessages(CNode* pto, bool fSendTrickle);
+/** Can we download the block chain from this peer? */
+bool CanSyncFrom(const CNode* pnode);
 bool LoadExternalBlockFile(FILE* fileIn);
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits);

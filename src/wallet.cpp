@@ -1209,7 +1209,10 @@ bool CWallet::SelectCoinsMinConf(int64_t nTargetValue, unsigned int nSpendTime, 
     vector<pair<int64_t, pair<const CWalletTx*,unsigned int> > > vValue;
     int64_t nTotalLower = 0;
 
-    random_shuffle(vCoins.begin(), vCoins.end(), GetRandInt);
+    // Shuffle the candidate coins (std::random_shuffle was removed in C++17;
+    // this is the same Fisher-Yates shuffle driven by the same RNG)
+    for (int i = (int)vCoins.size() - 1; i > 0; --i)
+        std::swap(vCoins[i], vCoins[GetRandInt(i + 1)]);
 
     BOOST_FOREACH(COutput output, vCoins)
     {
@@ -2552,13 +2555,14 @@ bool CWallet::MultiSend()
                 
                 // Create the transaction and commit it to the network
                 bool fCreated = CreateTransaction(vecSend, wtx, keyChange, nFeeRet, 1, cControl);
+                delete cControl;
                 if (!fCreated)
-                    printf("MultiSend createtransaction failed");
-                if(!CommitTransaction(wtx, keyChange))
-                    printf("MultiSend transaction commit failed");
+                    printf("MultiSend createtransaction failed\n");
+                // only commit a transaction that was actually created
+                else if(!CommitTransaction(wtx, keyChange))
+                    printf("MultiSend transaction commit failed\n");
                 else
                     fMultiSendNotify = true;
-                delete cControl;
                 
                 //write nLastMultiSendHeight to DB
                 CWalletDB walletdb(strWalletFile);
