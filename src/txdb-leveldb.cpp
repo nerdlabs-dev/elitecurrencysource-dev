@@ -334,6 +334,52 @@ static CBlockIndex *InsertBlockIndex(uint256 hash)
     return pindexNew;
 }
 
+bool CTxDB::ScanTxIndex(const leveldb::Snapshot* snapshot, uint64_t& nTransactions, uint64_t& nTxOuts)
+{
+    nTransactions = 0;
+    nTxOuts = 0;
+    leveldb::ReadOptions options;
+    options.snapshot = snapshot;
+    options.fill_cache = false; // a one-off full scan; don't push everything else out of the cache
+    leveldb::Iterator* iterator = pdb->NewIterator(options);
+    CDataStream ssStartKey(SER_DISK, CLIENT_VERSION);
+    ssStartKey << make_pair(string("tx"), uint256(0));
+    iterator->Seek(ssStartKey.str());
+    bool fOk = true;
+    while (iterator->Valid())
+    {
+        if (fRequestShutdown)
+        {
+            fOk = false;
+            break;
+        }
+        CDataStream ssKey(SER_DISK, CLIENT_VERSION);
+        ssKey.write(iterator->key().data(), iterator->key().size());
+        string strType;
+        ssKey >> strType;
+        if (strType != "tx")
+            break;
+        CDataStream ssValue(SER_DISK, CLIENT_VERSION);
+        ssValue.write(iterator->value().data(), iterator->value().size());
+        CTxIndex txindex;
+        ssValue >> txindex;
+        unsigned int nUnspent = 0;
+        for (unsigned int i = 0; i < txindex.vSpent.size(); i++)
+            if (txindex.vSpent[i].IsNull())
+                nUnspent++;
+        if (nUnspent > 0)
+        {
+            nTransactions++;
+            nTxOuts += nUnspent;
+        }
+        iterator->Next();
+    }
+    if (!iterator->status().ok())
+        fOk = false;
+    delete iterator;
+    return fOk;
+}
+
 bool CTxDB::LoadBlockIndex()
 {
     if (mapBlockIndex.size() > 0) {

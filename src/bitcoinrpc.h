@@ -53,6 +53,9 @@ enum RPCErrorCode
     // P2P client errors
     RPC_CLIENT_NOT_CONNECTED        = -9,  // Bitcoin is not connected
     RPC_CLIENT_IN_INITIAL_DOWNLOAD  = -10, // Still downloading initial blocks
+    RPC_CLIENT_NODE_ALREADY_ADDED   = -23, // Node is already added
+    RPC_CLIENT_NODE_NOT_ADDED       = -24, // Node has not been added before
+    RPC_CLIENT_NODE_NOT_CONNECTED   = -29, // Node to disconnect not found in connected nodes
 
     // Wallet errors
     RPC_WALLET_ERROR                = -4,  // Unspecified problem with wallet (key not found etc.)
@@ -132,6 +135,12 @@ extern double GetPoWMHashPS();
 extern double GetPoSKernelPS();
 
 extern std::string HexBits(unsigned int nBits);
+
+// Read a parameter that may arrive as a number, boolean or string
+// (e.g. verbose=1, verbose=true, "120"); strName is used in the error
+extern int64_t ParamInt64(const json_spirit::Value& value, const std::string& strName);
+extern int ParamInt(const json_spirit::Value& value, const std::string& strName);
+extern bool ParamBool(const json_spirit::Value& value, const std::string& strName);
 extern std::string HelpRequiringPassphrase();
 extern void EnsureWalletIsUnlocked();
 
@@ -146,6 +155,27 @@ extern std::vector<unsigned char> ParseHexO(const json_spirit::Object& o, std::s
 
 extern json_spirit::Value getconnectioncount(const json_spirit::Array& params, bool fHelp); // in rpcnet.cpp
 extern json_spirit::Value getpeerinfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value ping(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value addnode(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getaddednodeinfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value disconnectnode(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getnettotals(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getnetworkinfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value setban(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value listbanned(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value clearbanned(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value uptime(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getblockchaininfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getblockheader(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getmempoolinfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value gettxout(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value gettxoutsetinfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getsupply(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getmaxmoney(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getnetworkhashps(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getwalletinfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getdescriptorinfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value deriveaddresses(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value dumpwallet(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value importwallet(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value dumpprivkey(const json_spirit::Array& params, bool fHelp); // in rpcdump.cpp

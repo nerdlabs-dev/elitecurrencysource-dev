@@ -35,6 +35,53 @@ Value getsubsidy(const Array& params, bool fHelp)
     return (uint64_t)GetProofOfWorkReward(0);
 }
 
+// Estimated proof-of-work hashes per second over the last nBlocks blocks up
+// to nHeight (-1: the tip). Only proof-of-work blocks count, so it's 0 once
+// mining has ended (after block LAST_POW_BLOCK) unless an older height is given.
+static double NetworkHashPS(int nBlocks, int nHeight)
+{
+    LOCK(cs_main);
+    CBlockIndex* pb = (nHeight < 0 || nHeight > nBestHeight) ? pindexBest : FindBlockByHeight(nHeight);
+    if (pb == NULL || pb->nHeight == 0)
+        return 0;
+    if (nBlocks <= 0)
+        nBlocks = 120;
+    nBlocks = std::min(nBlocks, pb->nHeight);
+
+    double dWork = 0;
+    int64_t nMinTime = 0, nMaxTime = 0;
+    int nPoW = 0;
+    const CBlockIndex* pindex = pb;
+    for (int i = 0; i < nBlocks && pindex; i++, pindex = pindex->pprev)
+    {
+        if (!pindex->IsProofOfWork())
+            continue;
+        if (nPoW > 0)  // the oldest block's work was done before the time span starts
+            dWork += GetDifficulty(pindex) * 4294967296.0;
+        int64_t t = pindex->GetBlockTime();
+        nMinTime = nPoW ? std::min(nMinTime, t) : t;
+        nMaxTime = nPoW ? std::max(nMaxTime, t) : t;
+        nPoW++;
+    }
+    if (nPoW < 2 || nMaxTime <= nMinTime)
+        return 0;
+    return dWork / (double)(nMaxTime - nMinTime);
+}
+
+Value getnetworkhashps(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() > 2)
+        throw runtime_error(
+            "getnetworkhashps [blocks=120] [height=-1]\n"
+            "Returns the estimated proof-of-work hashes per second, from the\n"
+            "proof-of-work blocks among the last [blocks] blocks up to [height]\n"
+            "(-1: the current block). 0 once proof-of-work has ended.");
+
+    int nBlocks = params.size() > 0 ? ParamInt(params[0], "blocks") : 120;
+    int nHeight = params.size() > 1 ? ParamInt(params[1], "height") : -1;
+    return NetworkHashPS(nBlocks, nHeight);
+}
+
 Value getmininginfo(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
@@ -57,6 +104,8 @@ Value getmininginfo(const Array& params, bool fHelp)
 
     obj.push_back(Pair("blockvalue",    (uint64_t)GetProofOfWorkReward(0)));
     obj.push_back(Pair("netmhashps",     GetPoWMHashPS()));
+    obj.push_back(Pair("networkhashps",  NetworkHashPS(120, -1)));
+    obj.push_back(Pair("chain",          fTestNet ? "test" : "main"));
     obj.push_back(Pair("netstakeweight", GetPoSKernelPS()));
     obj.push_back(Pair("errors",        GetWarnings("statusbar")));
     obj.push_back(Pair("pooledtx",      (uint64_t)mempool.size()));

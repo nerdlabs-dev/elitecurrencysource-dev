@@ -5,7 +5,9 @@
 #ifndef BITCOIN_NET_H
 #define BITCOIN_NET_H
 
+#include <atomic>
 #include <deque>
+#include <list>
 #include <boost/array.hpp>
 #include <boost/foreach.hpp>
 #include <openssl/rand.h>
@@ -70,6 +72,7 @@ bool SeenLocal(const CService& addr);
 bool IsLocal(const CService& addr);
 bool GetLocal(CService &addr, const CNetAddr *paddrPeer = NULL);
 bool IsReachable(const CNetAddr &addr);
+bool IsReachable(enum Network net);
 void SetReachable(enum Network net, bool fFlag = true);
 CAddress GetLocalAddress(const CNetAddr *paddrPeer = NULL);
 
@@ -132,12 +135,30 @@ extern std::deque<std::pair<int64_t, CInv> > vRelayExpiration;
 extern CCriticalSection cs_mapRelay;
 extern std::map<CInv, int64_t> mapAlreadyAskedFor;
 
+// Nodes from -addnode and the addnode RPC; ThreadOpenAddedConnections keeps
+// a connection open to each
+extern std::list<std::string> vAddedNodes;
+extern CCriticalSection cs_vAddedNodes;
+// Connect to a node (by address, or by name with strDest); used by addnode onetry
+bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant *grantOutbound = NULL, const char *strDest = NULL, bool fOneShot = false);
+// Wake ThreadOpenAddedConnections early (after addnode adds a node)
+void WakeAddedConnections();
+// Mark connected peers for disconnection: by id when nNodeId >= 0, otherwise
+// those whose address (ip:port, or name used to connect) is strAddr.
+// Returns how many were found.
+int DisconnectNodes(const std::string& strAddr, int nNodeId);
+// The addresses we advertise to peers, with their scores (getnetworkinfo)
+void GetLocalAddresses(std::vector<std::pair<CService, int> >& vAddr);
+// When the program started (uptime RPC)
+extern int64_t nStartupTime;
+
 
 
 
 class CNodeStats
 {
 public:
+    int nodeid;
     uint64_t nServices;
     int64_t nLastSend;
     int64_t nLastRecv;
@@ -148,6 +169,13 @@ public:
     bool fInbound;
     int nStartingHeight;
     int nMisbehavior;
+    uint64_t nSendBytes;
+    uint64_t nRecvBytes;
+    double dPingTime;       // seconds, 0 if not measured yet
+    double dPingWait;       // seconds since an unanswered ping was sent, 0 if none
+    std::string addrLocal;
+    bool fSyncNode;
+    bool fAddedNode;
 };
 
 
@@ -184,6 +212,16 @@ public:
     bool fDisconnect;
     CSemaphoreGrant grantOutbound;
     int nRefCount;
+    int id;                 // unique per node while the program runs (getpeerinfo, disconnectnode)
+    uint64_t nSendBytes;    // bytes sent to / received from this peer
+    uint64_t nRecvBytes;
+    bool fAddedNode;        // connection made for an addnode entry
+
+    // Ping time measurement
+    uint64_t nPingNonceSent;    // nonce of the unanswered ping, 0 if none
+    int64_t nPingUsecStart;     // when it was sent (microseconds)
+    int64_t nPingUsecTime;      // last measured round trip (microseconds), 0 if none
+    bool fPingQueued;           // send a ping on the next SendMessages
 protected:
 
     // Denial-of-service detection/prevention
@@ -243,6 +281,14 @@ public:
         fNetworkNode = false;
         fSuccessfullyConnected = false;
         fDisconnect = false;
+        id = nLastNodeId.fetch_add(1);
+        nSendBytes = 0;
+        nRecvBytes = 0;
+        fAddedNode = false;
+        nPingNonceSent = 0;
+        nPingUsecStart = 0;
+        nPingUsecTime = 0;
+        fPingQueued = false;
         nRefCount = 0;
         hashContinue = 0;
         pindexLastGetBlocksBegin = 0;
@@ -658,8 +704,19 @@ public:
     // dangerous, because it can cause a network split
     // between nodes running old code and nodes running
     // new code.
-    static void ClearBanned(); // needed for unit testing
+    static void ClearBanned();
     static bool IsBanned(CNetAddr ip);
+    // Ban an address until nUntil (unix time); used by setban
+    static void Ban(const CNetAddr& ip, int64_t nUntil);
+    // Remove a ban; false if the address wasn't banned
+    static bool Unban(const CNetAddr& ip);
+    // Current bans (expired ones are dropped)
+    static void GetBanned(std::map<CNetAddr, int64_t>& banned);
+
+    static std::atomic<int> nLastNodeId;
+    // Total bytes sent and received on all connections since startup
+    static std::atomic<uint64_t> nTotalBytesSent;
+    static std::atomic<uint64_t> nTotalBytesRecv;
     bool Misbehaving(int howmuch); // 1 == a little, 100 == a lot
     void copyStats(CNodeStats &stats);
 };

@@ -3704,6 +3704,27 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
     }
 
 
+    else if (strCommand == "pong")
+    {
+        // Answer to one of our pings: record the round trip time
+        int64_t nPingUsecEnd = GetTimeMicros();
+        uint64_t nonce = 0;
+        if (vRecv.size() >= sizeof(nonce))
+        {
+            vRecv >> nonce;
+            if (pfrom->nPingNonceSent != 0 && nonce == pfrom->nPingNonceSent)
+            {
+                int64_t nPingUsecTime = nPingUsecEnd - pfrom->nPingUsecStart;
+                if (nPingUsecTime > 0)
+                    pfrom->nPingUsecTime = nPingUsecTime;
+                pfrom->nPingNonceSent = 0;
+            }
+            else if (nonce == 0)
+                pfrom->nPingNonceSent = 0;  // peer cancelled the ping
+        }
+    }
+
+
     else if (strCommand == "alert")
     {
         CAlert alert;
@@ -3901,14 +3922,31 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
         if (pto->nVersion == 0)
             return true;
 
-        // Keep-alive ping. We send a nonce of zero because we don't use it anywhere
-        // right now.
-        if (pto->nLastSend && GetTime() - pto->nLastSend > 30 * 60 && pto->vSend.empty()) {
+        // Ping every 2 minutes (or when the ping RPC asks), with a random
+        // nonce, so the round trip can be measured from the pong (getpeerinfo
+        // pingtime). Also keeps the connection alive. It used to send a
+        // nonce of zero after 30 idle minutes and never read the reply.
+        bool fSendPing = pto->fPingQueued;
+        if (pto->nPingNonceSent == 0 && pto->nPingUsecStart + 2 * 60 * 1000000LL < GetTimeMicros())
+            fSendPing = true;
+        if (fSendPing)
+        {
             uint64_t nonce = 0;
+            while (nonce == 0)
+                RAND_bytes((unsigned char*)&nonce, sizeof(nonce));
+            pto->fPingQueued = false;
+            pto->nPingUsecStart = GetTimeMicros();
             if (pto->nVersion > BIP0031_VERSION)
+            {
+                pto->nPingNonceSent = nonce;
                 pto->PushMessage("ping", nonce);
+            }
             else
+            {
+                // peers before BIP 31 don't answer with a pong
+                pto->nPingNonceSent = 0;
                 pto->PushMessage("ping");
+            }
         }
 
         // Start block download from the peer picked as sync peer (StartSync in

@@ -91,6 +91,8 @@ Value getinfo(const Array& params, bool fHelp)
     obj.push_back(Pair("newmint",       ValueFromAmount(pwalletMain->GetNewMint())));
     obj.push_back(Pair("stake",         ValueFromAmount(pwalletMain->GetStake())));
     obj.push_back(Pair("blocks",        (int)nBestHeight));
+    // coins in existence; block explorers (eIquidus "GETINFO" supply) read this
+    obj.push_back(Pair("moneysupply",   ValueFromAmount(pindexBest ? pindexBest->nMoneySupply : 0)));
     obj.push_back(Pair("timeoffset",    (boost::int64_t)GetTimeOffset()));
     obj.push_back(Pair("connections",   (int)vNodes.size()));
     obj.push_back(Pair("proxy",         (proxy.first.IsValid() ? proxy.first.ToStringIPPort() : string())));
@@ -108,6 +110,33 @@ Value getinfo(const Array& params, bool fHelp)
     if (pwalletMain->IsCrypted())
         obj.push_back(Pair("unlocked_until", (boost::int64_t)nWalletUnlockTime / 1000));
     obj.push_back(Pair("errors",        GetWarnings("statusbar")));
+    return obj;
+}
+
+Value getwalletinfo(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+            "getwalletinfo\n"
+            "Returns wallet state: walletversion, balance, unconfirmed_balance,\n"
+            "immature_balance, stake, txcount, keypoololdest, keypoolsize,\n"
+            "unlocked_until (if encrypted; 0 when locked), paytxfee.");
+
+    Object obj;
+    obj.push_back(Pair("walletversion",      pwalletMain->GetVersion()));
+    obj.push_back(Pair("balance",            ValueFromAmount(pwalletMain->GetBalance())));
+    obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwalletMain->GetUnconfirmedBalance())));
+    obj.push_back(Pair("immature_balance",   ValueFromAmount(pwalletMain->GetImmatureBalance())));
+    obj.push_back(Pair("stake",              ValueFromAmount(pwalletMain->GetStake())));
+    {
+        LOCK(pwalletMain->cs_wallet);
+        obj.push_back(Pair("txcount",        (int)pwalletMain->mapWallet.size()));
+    }
+    obj.push_back(Pair("keypoololdest",      (boost::int64_t)pwalletMain->GetOldestKeyPoolTime()));
+    obj.push_back(Pair("keypoolsize",        (int)pwalletMain->GetKeyPoolSize()));
+    if (pwalletMain->IsCrypted())
+        obj.push_back(Pair("unlocked_until", (boost::int64_t)nWalletUnlockTime / 1000));
+    obj.push_back(Pair("paytxfee",           ValueFromAmount(nTransactionFee)));
     return obj;
 }
 

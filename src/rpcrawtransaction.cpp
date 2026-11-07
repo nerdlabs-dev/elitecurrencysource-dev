@@ -41,14 +41,34 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out, bool fIncludeH
     Array a;
     BOOST_FOREACH(const CTxDestination& addr, addresses)
         a.push_back(CBitcoinAddress(addr).ToString());
+    // "address" is how current Bitcoin Core reports an output paying a single
+    // address; "addresses" is kept for older tools
+    if (type != TX_MULTISIG && addresses.size() == 1)
+        out.push_back(Pair("address", CBitcoinAddress(addresses[0]).ToString()));
     out.push_back(Pair("addresses", a));
 }
 
 void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
 {
+    // The block's time when the transaction is in the main chain, else its own
+    // timestamp. ("time" used to be written twice, once with each.)
+    int64_t nTime = tx.nTime;
+    const CBlockIndex* pindexTx = NULL;
+    if (hashBlock != 0)
+    {
+        map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+        if (mi != mapBlockIndex.end() && (*mi).second && (*mi).second->IsInMainChain())
+        {
+            pindexTx = (*mi).second;
+            nTime = pindexTx->nTime;
+        }
+    }
+
     entry.push_back(Pair("txid", tx.GetHash().GetHex()));
     entry.push_back(Pair("version", tx.nVersion));
-    entry.push_back(Pair("time", (boost::int64_t)tx.nTime));
+    entry.push_back(Pair("size", (int)::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION)));
+    entry.push_back(Pair("time", (boost::int64_t)nTime));
+    entry.push_back(Pair("txtime", (boost::int64_t)tx.nTime));
     entry.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
     Array vin;
     BOOST_FOREACH(const CTxIn& txin, tx.vin)
@@ -86,19 +106,14 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
     if (hashBlock != 0)
     {
         entry.push_back(Pair("blockhash", hashBlock.GetHex()));
-        map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
-        if (mi != mapBlockIndex.end() && (*mi).second)
+        if (pindexTx)
         {
-            CBlockIndex* pindex = (*mi).second;
-            if (pindex->IsInMainChain())
-            {
-                entry.push_back(Pair("confirmations", 1 + nBestHeight - pindex->nHeight));
-                entry.push_back(Pair("time", (boost::int64_t)pindex->nTime));
-                entry.push_back(Pair("blocktime", (boost::int64_t)pindex->nTime));
-            }
-            else
-                entry.push_back(Pair("confirmations", 0));
+            entry.push_back(Pair("blockheight", pindexTx->nHeight));
+            entry.push_back(Pair("confirmations", 1 + nBestHeight - pindexTx->nHeight));
+            entry.push_back(Pair("blocktime", (boost::int64_t)pindexTx->nTime));
         }
+        else
+            entry.push_back(Pair("confirmations", 0));
     }
 }
 
@@ -106,18 +121,19 @@ Value getrawtransaction(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
-            "getrawtransaction <txid> [verbose=0]\n"
-            "If verbose=0, returns a string that is\n"
+            "getrawtransaction <txid> [verbose=false]\n"
+            "If verbose is false or 0, returns a string that is\n"
             "serialized, hex-encoded data for <txid>.\n"
-            "If verbose is non-zero, returns an Object\n"
+            "If verbose is true or non-zero, returns an Object\n"
             "with information about <txid>.");
 
     uint256 hash;
     hash.SetHex(params[0].get_str());
 
+    // verbose may be 1/0 or true/false (or "1" from eIquidus settings)
     bool fVerbose = false;
     if (params.size() > 1)
-        fVerbose = (params[1].get_int() != 0);
+        fVerbose = ParamBool(params[1], "verbose");
 
     CTransaction tx;
     uint256 hashBlock = 0;
@@ -561,4 +577,167 @@ Value sendrawtransaction(const Array& params, bool fHelp)
     RelayTransaction(tx, hashTx);
 
     return hashTx.GetHex();
+}
+
+//
+// Output descriptors (getdescriptorinfo, deriveaddresses), the subset that
+// fits this coin: pk(<pubkey>), pkh(<pubkey>), addr(<address>), raw(<script hex>).
+// Block explorers such as eIquidus use them to show pay-to-pubkey outputs
+// (coinstakes) as addresses.
+//
+
+static const std::string DESC_INPUT_CHARSET =
+    "0123456789()[],'/*abcdefgh@:$%{}"
+    "IJKLMNOPQRSTUVWXYZ&+-.;<=>?!^_|~"
+    "ijklmnopqrstuvwxyzABCDEFGH`#\"\\ ";
+static const std::string DESC_CHECKSUM_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+
+static uint64_t DescPolyMod(uint64_t c, int val)
+{
+    uint8_t c0 = c >> 35;
+    c = ((c & 0x7ffffffffULL) << 5) ^ val;
+    if (c0 & 1) c ^= 0xf5dee51989ULL;
+    if (c0 & 2) c ^= 0xa9fdca3312ULL;
+    if (c0 & 4) c ^= 0x1bab10e32dULL;
+    if (c0 & 8) c ^= 0x3706b1677aULL;
+    if (c0 & 16) c ^= 0x644d626ffdULL;
+    return c;
+}
+
+// The 8 character checksum Bitcoin Core appends after '#'; "" if the
+// descriptor has characters outside the allowed set
+static std::string DescriptorChecksum(const std::string& str)
+{
+    uint64_t c = 1;
+    int cls = 0;
+    int clscount = 0;
+    for (size_t i = 0; i < str.size(); i++)
+    {
+        size_t pos = DESC_INPUT_CHARSET.find(str[i]);
+        if (pos == std::string::npos)
+            return "";
+        c = DescPolyMod(c, pos & 31);
+        cls = cls * 3 + (pos >> 5);
+        if (++clscount == 3)
+        {
+            c = DescPolyMod(c, cls);
+            cls = 0;
+            clscount = 0;
+        }
+    }
+    if (clscount > 0)
+        c = DescPolyMod(c, cls);
+    for (int j = 0; j < 8; ++j)
+        c = DescPolyMod(c, 0);
+    c ^= 1;
+    std::string ret(8, ' ');
+    for (int j = 0; j < 8; ++j)
+        ret[j] = DESC_CHECKSUM_CHARSET[(c >> (5 * (7 - j))) & 31];
+    return ret;
+}
+
+struct ParsedDescriptor
+{
+    std::string strDesc;    // without checksum
+    std::string strType;    // pk, pkh, addr, raw
+    CScript script;         // the output script it describes
+};
+
+static ParsedDescriptor ParseDescriptor(const std::string& strIn)
+{
+    std::string str = strIn;
+    size_t nHash = str.find('#');
+    if (nHash != std::string::npos)
+    {
+        std::string strChecksum = str.substr(nHash + 1);
+        str = str.substr(0, nHash);
+        if (strChecksum.size() != 8)
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Expected 8 character checksum, not " + strprintf("%u", (unsigned int)strChecksum.size()) + " characters");
+        std::string strExpected = DescriptorChecksum(str);
+        if (strExpected.empty() || strExpected != strChecksum)
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Provided checksum '" + strChecksum + "' does not match computed checksum '" + strExpected + "'");
+    }
+    if (DescriptorChecksum(str).empty())
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid characters in descriptor");
+
+    size_t nOpen = str.find('(');
+    if (nOpen == std::string::npos || str.size() < nOpen + 2 || str[str.size() - 1] != ')')
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid descriptor: " + str);
+    ParsedDescriptor d;
+    d.strDesc = str;
+    d.strType = str.substr(0, nOpen);
+    std::string strArg = str.substr(nOpen + 1, str.size() - nOpen - 2);
+
+    if (d.strType == "pk" || d.strType == "pkh")
+    {
+        if (!IsHex(strArg))
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "pk() and pkh() need a hex public key (key paths and xpubs aren't supported)");
+        CPubKey pubkey(ParseHex(strArg));
+        if (!pubkey.IsValid())
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid public key: " + strArg);
+        if (d.strType == "pk")
+            d.script << pubkey.Raw() << OP_CHECKSIG;
+        else
+            d.script.SetDestination(pubkey.GetID());
+    }
+    else if (d.strType == "addr")
+    {
+        CBitcoinAddress address(strArg);
+        if (!address.IsValid())
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address: " + strArg);
+        d.script.SetDestination(address.Get());
+    }
+    else if (d.strType == "raw")
+    {
+        if (!IsHex(strArg))
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "raw() needs hex");
+        std::vector<unsigned char> v = ParseHex(strArg);
+        d.script = CScript(v.begin(), v.end());
+    }
+    else
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Unsupported descriptor '" + d.strType + "()': supported are pk(), pkh(), addr() and raw()");
+    return d;
+}
+
+Value getdescriptorinfo(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "getdescriptorinfo <descriptor>\n"
+            "Checks an output descriptor and returns it with its checksum.\n"
+            "Supported: pk(<hex pubkey>), pkh(<hex pubkey>), addr(<address>), raw(<script hex>).\n"
+            "Returns: descriptor (with #checksum), checksum, isrange, issolvable, hasprivatekeys.");
+
+    ParsedDescriptor d = ParseDescriptor(params[0].get_str());
+    std::string strChecksum = DescriptorChecksum(d.strDesc);
+
+    Object result;
+    result.push_back(Pair("descriptor", d.strDesc + "#" + strChecksum));
+    result.push_back(Pair("checksum", strChecksum));
+    result.push_back(Pair("isrange", false));
+    result.push_back(Pair("issolvable", d.strType == "pk" || d.strType == "pkh"));
+    result.push_back(Pair("hasprivatekeys", false));
+    return result;
+}
+
+Value deriveaddresses(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 2)
+        throw runtime_error(
+            "deriveaddresses <descriptor> [range]\n"
+            "Returns the address(es) an output descriptor pays to, as an array.\n"
+            "pk(<pubkey>) gives the pubkey's address, as this coin shows\n"
+            "pay-to-pubkey outputs. Ranged descriptors aren't supported.");
+
+    ParsedDescriptor d = ParseDescriptor(params[0].get_str());
+    if (params.size() > 1 && !params[1].is_null())
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Range should not be specified for an un-ranged descriptor");
+
+    CTxDestination dest;
+    if (!ExtractDestination(d.script, dest))
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Descriptor does not have a corresponding address");
+
+    Array result;
+    result.push_back(CBitcoinAddress(dest).ToString());
+    return result;
 }

@@ -202,6 +202,14 @@ public:
     bool ReadCheckpointPubKey(std::string& strPubKey);
     bool WriteCheckpointPubKey(const std::string& strPubKey);
     bool LoadBlockIndex();
+
+    // For gettxoutsetinfo: a consistent view of the database to scan while
+    // blocks keep being processed
+    const leveldb::Snapshot* GetSnapshot() { return pdb->GetSnapshot(); }
+    void ReleaseSnapshot(const leveldb::Snapshot* snapshot) { pdb->ReleaseSnapshot(snapshot); }
+    // Count transactions that still have unspent outputs, and those outputs,
+    // from the transaction index as of the snapshot
+    bool ScanTxIndex(const leveldb::Snapshot* snapshot, uint64_t& nTransactions, uint64_t& nTxOuts);
 private:
     bool LoadBlockIndexGuts();
 };

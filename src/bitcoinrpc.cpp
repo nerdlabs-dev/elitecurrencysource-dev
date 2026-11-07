@@ -24,6 +24,8 @@
 #include <boost/asio/ssl.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/shared_ptr.hpp>
+#include <cerrno>
+#include <limits>
 #include <list>
 
 #define printf OutputDebugStringF
@@ -121,6 +123,72 @@ int64_t AmountFromValue(const Value& value)
 Value ValueFromAmount(int64_t amount)
 {
     return (double)amount / (double)COIN;
+}
+
+// Lenient parameter reading. JSON-RPC clients (block explorers, pools,
+// scripts) send numbers and booleans as different JSON types: verbose=1 or
+// true, and eIquidus sends parameters from its settings file as strings.
+int64_t ParamInt64(const Value& value, const std::string& strName)
+{
+    switch (value.type())
+    {
+    case int_type:
+        return value.get_int64();
+    case real_type:
+    {
+        double d = value.get_real();
+        if (d != floor(d) || d > 9.2e18 || d < -9.2e18)
+            throw JSONRPCError(RPC_TYPE_ERROR, strName + " must be a whole number");
+        return (int64_t)d;
+    }
+    case bool_type:
+        return value.get_bool() ? 1 : 0;
+    case str_type:
+    {
+        const std::string& str = value.get_str();
+        char* pend = NULL;
+        errno = 0;
+        long long n = strtoll(str.c_str(), &pend, 10);
+        if (str.empty() || *pend != 0 || errno != 0)
+            throw JSONRPCError(RPC_TYPE_ERROR, strName + " must be a whole number");
+        return n;
+    }
+    default:
+        throw JSONRPCError(RPC_TYPE_ERROR, strName + " must be a whole number");
+    }
+}
+
+int ParamInt(const Value& value, const std::string& strName)
+{
+    int64_t n = ParamInt64(value, strName);
+    if (n > std::numeric_limits<int>::max() || n < std::numeric_limits<int>::min())
+        throw JSONRPCError(RPC_TYPE_ERROR, strName + " is out of range");
+    return (int)n;
+}
+
+bool ParamBool(const Value& value, const std::string& strName)
+{
+    switch (value.type())
+    {
+    case bool_type:
+        return value.get_bool();
+    case int_type:
+        return value.get_int64() != 0;
+    case real_type:
+        return value.get_real() != 0;
+    case str_type:
+    {
+        std::string str = value.get_str();
+        if (str == "true" || str == "1")
+            return true;
+        if (str == "false" || str == "0" || str == "")
+            return false;
+        break;
+    }
+    default:
+        break;
+    }
+    throw JSONRPCError(RPC_TYPE_ERROR, strName + " must be true or false");
 }
 
 std::string HexBits(unsigned int nBits)
@@ -256,6 +324,27 @@ static const CRPCCommand vRPCCommands[] =
     { "getblockcount",          &getblockcount,          true,   false },
     { "getconnectioncount",     &getconnectioncount,     true,   false },
     { "getpeerinfo",            &getpeerinfo,            true,   false },
+    { "ping",                  &ping,                    true,  true },
+    { "addnode",               &addnode,                 true,  true },
+    { "getaddednodeinfo",      &getaddednodeinfo,        true,  true },
+    { "disconnectnode",        &disconnectnode,          true,  true },
+    { "getnettotals",          &getnettotals,            true,  true },
+    { "getnetworkinfo",        &getnetworkinfo,          true,  true },
+    { "setban",                &setban,                  true,  true },
+    { "listbanned",            &listbanned,              true,  true },
+    { "clearbanned",           &clearbanned,             true,  true },
+    { "uptime",                &uptime,                  true,  true },
+    { "getblockchaininfo",     &getblockchaininfo,       true,  false },
+    { "getblockheader",        &getblockheader,          false, false },
+    { "getmempoolinfo",        &getmempoolinfo,          true,  true },
+    { "gettxout",              &gettxout,                false, false },
+    { "gettxoutsetinfo",       &gettxoutsetinfo,         true,  true },
+    { "getsupply",             &getsupply,               true,  false },
+    { "getmaxmoney",           &getmaxmoney,             true,  true },
+    { "getnetworkhashps",      &getnetworkhashps,        true,  true },
+    { "getwalletinfo",         &getwalletinfo,           true,  false },
+    { "getdescriptorinfo",     &getdescriptorinfo,       true,  true },
+    { "deriveaddresses",       &deriveaddresses,         true,  true },
     { "getdifficulty",          &getdifficulty,          true,   false },
     { "getinfo",                &getinfo,                true,   false },
     { "getsubsidy",             &getsubsidy,             true,   false },
@@ -1199,6 +1288,17 @@ void ConvertTo(Value& value, bool fAllowNull=false)
 }
 
 // Convert strings to command-specific RPC representation
+// Command line: take the parameter as JSON if it parses as JSON (true, 1,
+// 2.5), otherwise leave it a string. For parameters that accept several types.
+static void ConvertToJSONIfPossible(Value& value)
+{
+    if (value.type() != str_type)
+        return;
+    Value v;
+    if (read_string(value.get_str(), v) && v.type() != obj_type && v.type() != array_type)
+        value = v;
+}
+
 Array RPCConvertValues(const std::string &strMethod, const std::vector<std::string> &strParams)
 {
     Array params;
@@ -1220,9 +1320,7 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "listreceivedbyaccount"  && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "listreceivedbyaccount"  && n > 1) ConvertTo<bool>(params[1]);
     if (strMethod == "getbalance"             && n > 1) ConvertTo<boost::int64_t>(params[1]);
-    if (strMethod == "getblock"               && n > 1) ConvertTo<bool>(params[1]);
     if (strMethod == "getblockbynumber"       && n > 0) ConvertTo<boost::int64_t>(params[0]);
-    if (strMethod == "getblockbynumber"       && n > 1) ConvertTo<bool>(params[1]);
     if (strMethod == "getblockhash"           && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "move"                   && n > 2) ConvertTo<double>(params[2]);
     if (strMethod == "move"                   && n > 3) ConvertTo<boost::int64_t>(params[3]);
@@ -1251,7 +1349,19 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "listunspent"            && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "listunspent"            && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "listunspent"            && n > 2) ConvertTo<Array>(params[2]);
-    if (strMethod == "getrawtransaction"      && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "getrawtransaction"      && n > 1) ConvertToJSONIfPossible(params[1]);
+    if (strMethod == "getblock"               && n > 1) ConvertToJSONIfPossible(params[1]);
+    if (strMethod == "getblockbynumber"       && n > 1) ConvertToJSONIfPossible(params[1]);
+    if (strMethod == "getblockheader"         && n > 1) ConvertTo<bool>(params[1]);
+    if (strMethod == "gettxout"               && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "gettxout"               && n > 2) ConvertTo<bool>(params[2]);
+    if (strMethod == "getaddednodeinfo"       && n > 0) ConvertTo<bool>(params[0]);
+    if (strMethod == "disconnectnode"         && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "setban"                 && n > 2) ConvertTo<boost::int64_t>(params[2]);
+    if (strMethod == "setban"                 && n > 3) ConvertTo<bool>(params[3]);
+    if (strMethod == "getnetworkhashps"       && n > 0) ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getnetworkhashps"       && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "deriveaddresses"        && n > 1) ConvertToJSONIfPossible(params[1]);
     if (strMethod == "createrawtransaction"   && n > 0) ConvertTo<Array>(params[0]);
     if (strMethod == "createrawtransaction"   && n > 1) ConvertTo<Object>(params[1]);
     if (strMethod == "signrawtransaction"     && n > 1) ConvertTo<Array>(params[1], true);
