@@ -65,6 +65,17 @@ SIG=$(cli signmessage "$ADDR" "smoke test" | tr -d '\r')
 check "sign and verify a message" test "$(cli verifymessage "$ADDR" "$SIG" "smoke test" | tr -d '\r')" = "true"
 check "tampered message is rejected" test "$(cli verifymessage "$ADDR" "$SIG" "smoke tesT" | tr -d '\r')" = "false"
 KEY=$(cli dumpprivkey "$ADDR" | tr -d '\r')
+check "addnode add / getaddednodeinfo / remove" sh -c "\"$BIN\" -datadir=\"$CUR\" -conf=\"$CUR/1337.conf\" addnode 127.0.0.1:1 add &&
+    \"$BIN\" -datadir=\"$CUR\" -conf=\"$CUR/1337.conf\" getaddednodeinfo false | grep -q 127.0.0.1:1 &&
+    \"$BIN\" -datadir=\"$CUR\" -conf=\"$CUR/1337.conf\" addnode 127.0.0.1:1 remove"
+# The RPC calls the eIquidus block explorer makes, with its parameter types
+# and the fields it reads (needs Node.js)
+if command -v node > /dev/null 2>&1; then
+    PASS=$(sed -n 's/^rpcpassword=//p' "$CUR/1337.conf")
+    check "block explorer (eIquidus) RPC compatibility" node "$(dirname "$0")/explorer-compat-test.js" 127.0.0.1 "$RPCPORT" smoke "$PASS"
+else
+    echo "(Node.js not found: block explorer compatibility test skipped)"
+fi
 stop
 
 # --- second wallet: import that key, then encrypt the wallet

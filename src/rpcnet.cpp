@@ -186,7 +186,8 @@ Value getaddednodeinfo(const Array& params, bool fHelp)
             bool fConnected = false;
             {
                 LOCK(cs_vNodes);
-                // connected by name (through a proxy)?
+                set<CNode*> setReported;
+                // connected by name (e.g. through a proxy, where names aren't resolved here)
                 BOOST_FOREACH(CNode* pnode, vNodes)
                     if (pnode->addrName == strAddNode)
                     {
@@ -194,18 +195,24 @@ Value getaddednodeinfo(const Array& params, bool fHelp)
                         node.push_back(Pair("address", pnode->addr.ToStringIPPort()));
                         node.push_back(Pair("connected", pnode->fInbound ? "inbound" : "outbound"));
                         addresses.push_back(node);
+                        setReported.insert(pnode);
                         fConnected = true;
                     }
+                // each address the name resolves to
                 BOOST_FOREACH(const CService& addrNode, vservNode)
                 {
                     bool fFound = false;
                     BOOST_FOREACH(CNode* pnode, vNodes)
-                        if (pnode->addr == addrNode && pnode->addrName != strAddNode)
+                        if (pnode->addr == addrNode)
                         {
-                            Object node;
-                            node.push_back(Pair("address", addrNode.ToStringIPPort()));
-                            node.push_back(Pair("connected", pnode->fInbound ? "inbound" : "outbound"));
-                            addresses.push_back(node);
+                            if (!setReported.count(pnode))
+                            {
+                                Object node;
+                                node.push_back(Pair("address", addrNode.ToStringIPPort()));
+                                node.push_back(Pair("connected", pnode->fInbound ? "inbound" : "outbound"));
+                                addresses.push_back(node);
+                                setReported.insert(pnode);
+                            }
                             fFound = fConnected = true;
                             break;
                         }

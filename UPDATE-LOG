@@ -19,6 +19,14 @@ Fix - key copies kept the wrong compressed flag; bad keys leaked memory
 Fix - MultiSend tried to send a transaction that failed to be created
 Fix - -testnet failed at startup (genesis block)
 Added - -blockbatchsize option
+Added - RPC: getblockchaininfo, getblockheader, gettxout, gettxoutsetinfo, getmempoolinfo, getnetworkhashps, getsupply, getmaxmoney
+Added - RPC: getnetworkinfo, getnettotals, ping, addnode, getaddednodeinfo, disconnectnode, setban, listbanned, clearbanned, uptime
+Added - RPC: getwalletinfo, getdescriptorinfo, deriveaddresses
+Fix - addnode: works without -addnode at startup, re-resolves names, doesn't wait for an outbound slot
+Fix - getinfo includes moneysupply (block explorers read it)
+Fix - duplicate keys in transaction and block JSON
+Changed - RPC accepts true/false or 1/0 for verbose options, and numbers given as strings
+Changed - getpeerinfo: id, ping time, bytes sent/received, addnode, syncnode
 
 
 v1.7.0.0
