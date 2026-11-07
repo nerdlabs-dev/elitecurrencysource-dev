@@ -25,6 +25,7 @@ class QTableView;
 class QAbstractItemModel;
 class QModelIndex;
 class QProgressBar;
+class QToolBar;
 class QStackedWidget;
 class QUrl;
 QT_END_NAMESPACE
@@ -57,6 +58,7 @@ protected:
     void closeEvent(QCloseEvent *event);
     void dragEnterEvent(QDragEnterEvent *event);
     void dropEvent(QDropEvent *event);
+    void resizeEvent(QResizeEvent *event);
 
 private:
     ClientModel *clientModel;
@@ -83,6 +85,11 @@ private:
     QProgressBar *progressBar;
 
     QMenuBar *appMenuBar;
+    QList<QAction*> navActions; // the page links across the top
+    QToolBar *navBar;
+
+    /** Size the page links' type so they all fit across the window */
+    void fitNavigation();
     QAction *overviewAction;
     QAction *historyAction;
     QAction *quitAction;

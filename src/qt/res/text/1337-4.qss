@@ -1,0 +1,376 @@
+/*
+ * Elite wallet theme: gold on charcoal.
+ *
+ * The wallet writes this file to its data directory as 1337-4.qss the first
+ * time it starts, and loads it from there, so it can be edited. Delete that
+ * copy to get this default back. The overview page and the navigation fonts
+ * are set in the code, as they use the fonts that come with the wallet.
+ *
+ * Colours: gold #ddb66f, dim gold #8d7a55, text #d9d2c3, grey #848484,
+ * panels #181818, borders #2e2e2e.
+ */
+
+QWidget
+{
+    color: #d9d2c3;
+    selection-background-color: #5c4a2c;
+    selection-color: #f3e6c8;
+}
+
+/* The main window: a charcoal gradient with a fine grain */
+BitcoinGUI
+{
+    background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #2a2a2a, stop: 0.45 #1d1d1d, stop: 1 #141414);
+    background-image: url(:/images/texture);
+}
+
+QDialog, QMessageBox
+{
+    background-color: #1f1f1f;
+}
+
+/* Pages shown inside the main window draw on its background */
+QStackedWidget > QDialog, QStackedWidget > QWidget
+{
+    background: transparent;
+}
+
+QLabel
+{
+    background: transparent;
+}
+
+/* Scrolling pages (sending to several recipients) show the page behind them */
+QScrollArea, QScrollArea > #qt_scrollarea_viewport, QScrollArea > #qt_scrollarea_viewport > QWidget
+{
+    background: transparent;
+}
+
+/* --- Navigation ------------------------------------------------------- */
+
+#navBar
+{
+    background: #313131;
+    border: none;
+    border-bottom: 1px solid #262626;
+    spacing: 0px;
+    padding: 4px 0px 2px 0px;
+}
+
+#navBar QToolButton
+{
+    color: #6c6c6c;
+    background: transparent;
+    border: none;
+    padding: 6px 2px;
+}
+
+#navBar QToolButton:hover
+{
+    color: #a89b80;
+}
+
+#navBar QToolButton:checked
+{
+    color: #ddb66f;
+}
+
+#navMenu
+{
+    background: transparent;
+    padding-left: 22px;
+}
+
+#navMenu::item
+{
+    background: transparent;
+    color: #5f5f5f;
+    padding: 3px 8px;
+}
+
+#navMenu::item:selected, #navMenu::item:pressed
+{
+    color: #ddb66f;
+}
+
+QMenu
+{
+    background-color: #1e1e1e;
+    border: 1px solid #3a3a3a;
+    padding: 4px 0px;
+}
+
+QMenu::item
+{
+    background: transparent;
+    color: #d9d2c3;
+    padding: 5px 24px 5px 28px;
+}
+
+QMenu::item:selected
+{
+    background: #3a3122;
+    color: #f3e6c8;
+}
+
+QMenu::item:disabled
+{
+    color: #5a5a5a;
+}
+
+QMenu::separator
+{
+    height: 1px;
+    background: #333333;
+    margin: 4px 8px;
+}
+
+QToolTip
+{
+    background-color: #1e1e1e;
+    color: #e6dcc6;
+    border: 1px solid #8d7a55;
+    padding: 4px;
+}
+
+/* --- Status bar and the sync progress bar -------------------------------- */
+
+QStatusBar
+{
+    background: transparent;
+}
+
+QStatusBar::item
+{
+    border: none;
+}
+
+#progressBarLabel
+{
+    color: #8d7a55;
+}
+
+QProgressBar
+{
+    background-color: #474747;
+    border: none;
+    border-radius: 7px;
+    text-align: center;
+    color: #1a1a1a;
+}
+
+QProgressBar::chunk
+{
+    background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #e6c486, stop: 1 #d2a95e);
+    border-radius: 7px;
+}
+
+/* --- Inputs ----------------------------------------------------------- */
+
+QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QDateTimeEdit, QComboBox
+{
+    background-color: #161616;
+    border: 1px solid #3b3427;
+    border-radius: 3px;
+    color: #e6dcc6;
+    padding: 3px 6px;
+}
+
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus
+{
+    border-color: #ddb66f;
+}
+
+QLineEdit:disabled, QLineEdit:read-only, QComboBox:disabled
+{
+    color: #8a8a8a;
+    border-color: #2e2e2e;
+}
+
+QComboBox::drop-down
+{
+    border: none;
+    width: 18px;
+}
+
+QComboBox QAbstractItemView
+{
+    background-color: #1e1e1e;
+    border: 1px solid #3a3a3a;
+    selection-background-color: #3a3122;
+}
+
+QPushButton
+{
+    background-color: #262626;
+    border: 1px solid #4a3f2b;
+    border-radius: 4px;
+    color: #ddb66f;
+    padding: 5px 14px;
+}
+
+QPushButton:hover
+{
+    background-color: #2f2a21;
+    border-color: #8d7a55;
+}
+
+QPushButton:pressed, QPushButton:checked
+{
+    background-color: #1a1a1a;
+}
+
+QPushButton:default
+{
+    border-color: #ddb66f;
+}
+
+QPushButton:disabled
+{
+    color: #5a5a5a;
+    border-color: #333333;
+    background-color: #222222;
+}
+
+QToolButton
+{
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+}
+
+QToolButton:hover
+{
+    border-color: #4a3f2b;
+}
+
+QCheckBox, QRadioButton, QGroupBox
+{
+    background: transparent;
+}
+
+QGroupBox
+{
+    border: 1px solid #2e2e2e;
+    border-radius: 4px;
+    margin-top: 10px;
+    padding-top: 6px;
+}
+
+QGroupBox::title
+{
+    subcontrol-origin: margin;
+    left: 8px;
+    color: #ddb66f;
+}
+
+/* --- Tables and lists ---------------------------------------------------- */
+
+QTableView, QTreeView, QListView
+{
+    background-color: #181818;
+    alternate-background-color: #1d1d1d;
+    gridline-color: #262626;
+    color: #cfc8b8;
+    border: 1px solid #2a2a2a;
+}
+
+QHeaderView
+{
+    background: transparent;
+}
+
+QHeaderView::section
+{
+    background-color: #262626;
+    color: #ddb66f;
+    border: none;
+    border-right: 1px solid #1c1c1c;
+    padding: 4px 6px;
+}
+
+QTableCornerButton::section
+{
+    background-color: #262626;
+    border: none;
+}
+
+QTabWidget::pane
+{
+    border: 1px solid #2e2e2e;
+    background-color: #1c1c1c;
+}
+
+QTabBar::tab
+{
+    background-color: #262626;
+    color: #848484;
+    border: 1px solid #2e2e2e;
+    border-bottom: none;
+    padding: 5px 14px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected
+{
+    background-color: #1c1c1c;
+    color: #ddb66f;
+}
+
+QTabBar::tab:hover
+{
+    color: #c9b48a;
+}
+
+/* --- Scroll bars ------------------------------------------------------ */
+
+QScrollBar:vertical
+{
+    background: #161616;
+    width: 10px;
+    margin: 0px;
+    border: none;
+}
+
+QScrollBar:horizontal
+{
+    background: #161616;
+    height: 10px;
+    margin: 0px;
+    border: none;
+}
+
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal
+{
+    background: #4a4337;
+    border-radius: 4px;
+    margin: 2px;
+}
+
+QScrollBar::handle:vertical
+{
+    min-height: 24px;
+}
+
+QScrollBar::handle:horizontal
+{
+    min-width: 24px;
+}
+
+QScrollBar::handle:hover
+{
+    background: #8d7a55;
+}
+
+QScrollBar::add-line, QScrollBar::sub-line
+{
+    width: 0px;
+    height: 0px;
+    border: none;
+    background: none;
+}
+
+QScrollBar::add-page, QScrollBar::sub-page
+{
+    background: none;
+}

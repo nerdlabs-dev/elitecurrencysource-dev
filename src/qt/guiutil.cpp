@@ -38,6 +38,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QFileDialog>
+#include <QFontDatabase>
 #include <QDesktopServices>
 #include <QThread>
 
@@ -46,6 +47,32 @@
 
 
 namespace GUIUtil {
+
+static QString themeFontFamily[2];
+
+void loadThemeFonts()
+{
+    static const char *files[2] = { ":/fonts/condensed", ":/fonts/script" };
+    static const char *fallback[2] = { "Oswald Light", "Pinyon Script" };
+    for (int i = 0; i < 2; i++)
+    {
+        int id = QFontDatabase::addApplicationFont(files[i]);
+        QStringList families = id < 0 ? QStringList() : QFontDatabase::applicationFontFamilies(id);
+        themeFontFamily[i] = families.isEmpty() ? QString(fallback[i]) : families.first();
+    }
+}
+
+QFont themeFont(ThemeFont which, int pixelSize, qreal letterSpacing)
+{
+    QFont font(themeFontFamily[which].isEmpty() ? QString("sans-serif") : themeFontFamily[which]);
+    font.setPixelSize(pixelSize);
+    if (which == FontCondensed)
+        font.setWeight(QFont::Light);
+    if (letterSpacing)
+        font.setLetterSpacing(QFont::AbsoluteSpacing, letterSpacing);
+    font.setStyleStrategy(QFont::PreferAntialias);
+    return font;
+}
 
 QString dateTimeStr(const QDateTime &date)
 {

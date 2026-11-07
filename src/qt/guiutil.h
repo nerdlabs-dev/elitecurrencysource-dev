@@ -21,6 +21,16 @@ class SendCoinsRecipient;
  */
 namespace GUIUtil
 {
+    // Fonts bundled with the wallet (res/fonts), registered by loadThemeFonts()
+    enum ThemeFont
+    {
+        FontCondensed, // Oswald Light: navigation, figures, headings
+        FontScript     // Pinyon Script: the gold script titles
+    };
+    void loadThemeFonts();
+    // The bundled font at a pixel size, with extra letter spacing in pixels
+    QFont themeFont(ThemeFont which, int pixelSize, qreal letterSpacing = 0);
+
     // Create human-readable string from date
     QString dateTimeStr(const QDateTime &datetime);
     QString dateTimeStr(qint64 nTime);

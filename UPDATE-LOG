@@ -27,6 +27,16 @@ Fix - getinfo includes moneysupply (block explorers read it)
 Fix - duplicate keys in transaction and block JSON
 Changed - RPC accepts true/false or 1/0 for verbose options, and numbers given as strings
 Changed - getpeerinfo: id, ping time, bytes sent/received, addnode, syncnode
+Wallet look - overview page rebuilt to the Elite design; it fits any window size instead of one fixed picture
+Wallet look - the window can be resized (was fixed at 960x710) and remembers its size; sharp on high-DPI screens
+Wallet look - fonts come with the wallet (Oswald, Pinyon Script), so it looks the same on every computer
+Wallet look - page links across the top with the menus under them; MultiSend added to the links
+Wallet look - gold sync progress bar across the bottom of the window
+Wallet look - lock button on the overview: shows locked/unlocked/not encrypted, click to unlock, lock or encrypt
+Wallet look - the recent transactions list shows as many as fit; Discord and X links on the overview
+Wallet look - new theme file 1337-4.qss (an old 1337-3.qss in the data directory is no longer used)
+Removed - unused images and icons
+Fix - the wallet crashed on its first start (the wallet file name was empty in the settings migration)
 
 
 v1.7.0.0

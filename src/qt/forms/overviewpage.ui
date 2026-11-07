@@ -1,1143 +1,572 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>OverviewPage</class>
- <widget class="QWidget" name="OverviewPage">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>941</width>
-    <height>616</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Form</string>
-  </property>
-  <property name="styleSheet">
-   <string notr="true">background-image: url(:/images/overview-/background)</string>
-  </property>
-  <layout class="QGridLayout" name="gridLayout_18">
-   <property name="leftMargin">
-    <number>0</number>
-   </property>
-   <property name="topMargin">
-    <number>0</number>
-   </property>
-   <property name="rightMargin">
-    <number>0</number>
-   </property>
-   <property name="bottomMargin">
-    <number>0</number>
-   </property>
-   <item row="0" column="0">
-    <widget class="QFrame" name="overview_frame">
-     <property name="styleSheet">
-      <string notr="true">background-image: url(:/images/overview-background)</string>
-     </property>
-     <property name="frameShape">
-      <enum>QFrame::NoFrame</enum>
-     </property>
-     <property name="frameShadow">
-      <enum>QFrame::Plain</enum>
-     </property>
-     <property name="lineWidth">
-      <number>0</number>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_20">
+  <class>OverviewPage</class>
+  <widget class="QWidget" name="OverviewPage">
+    <property name="geometry">
+      <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>960</width>
+        <height>600</height>
+      </rect>
+    </property>
+    <layout class="QVBoxLayout" name="mainLayout" stretch="5,6,0">
+      <property name="spacing">
+        <number>6</number>
+      </property>
       <property name="leftMargin">
-       <number>0</number>
+        <number>28</number>
       </property>
       <property name="topMargin">
-       <number>0</number>
+        <number>4</number>
       </property>
       <property name="rightMargin">
-       <number>0</number>
+        <number>28</number>
       </property>
       <property name="bottomMargin">
-       <number>0</number>
+        <number>0</number>
       </property>
-      <item row="1" column="0">
-       <widget class="QFrame" name="mid_area_frame">
-        <property name="styleSheet">
-         <string notr="true">background:transparent;</string>
-        </property>
-        <property name="frameShape">
-         <enum>QFrame::NoFrame</enum>
-        </property>
-        <property name="frameShadow">
-         <enum>QFrame::Raised</enum>
-        </property>
-        <layout class="QGridLayout" name="gridLayout_14">
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
-         <item row="0" column="0">
-          <widget class="QFrame" name="txframe">
-           <property name="maximumSize">
-            <size>
-             <width>900</width>
-             <height>230</height>
-            </size>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background-image: url(:/images/txbackground)</string>
-           </property>
-           <property name="frameShape">
-            <enum>QFrame::NoFrame</enum>
-           </property>
-           <property name="frameShadow">
-            <enum>QFrame::Plain</enum>
-           </property>
-           <property name="lineWidth">
-            <number>0</number>
-           </property>
-           <layout class="QGridLayout" name="gridLayout_3">
-            <property name="topMargin">
-             <number>0</number>
-            </property>
-            <property name="bottomMargin">
-             <number>0</number>
-            </property>
-            <item row="0" column="0">
-             <spacer name="horizontalSpacer_21">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
+      <item>
+        <layout class="QHBoxLayout" name="topLayout" stretch="3,5,3">
+          <property name="spacing">
+            <number>12</number>
+          </property>
+          <item>
+            <widget class="QWidget" name="statsColumn">
+              <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                </sizepolicy>
               </property>
-              <property name="sizeType">
-               <enum>QSizePolicy::Fixed</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>12</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="0" column="2">
-             <spacer name="horizontalSpacer_22">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="sizeType">
-               <enum>QSizePolicy::Fixed</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>12</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="0" column="1">
-             <layout class="QVBoxLayout" name="verticalLayout_3">
-              <item>
-               <widget class="QFrame" name="frame_2">
-                <property name="styleSheet">
-                 <string notr="true">background:transparent;</string>
+              <layout class="QVBoxLayout" name="statsLayout">
+                <property name="spacing">
+                  <number>6</number>
                 </property>
-                <property name="frameShape">
-                 <enum>QFrame::NoFrame</enum>
-                </property>
-                <property name="frameShadow">
-                 <enum>QFrame::Raised</enum>
-                </property>
-                <layout class="QVBoxLayout" name="verticalLayout">
-                 <property name="topMargin">
+                <property name="leftMargin">
                   <number>0</number>
-                 </property>
-                 <item>
-                  <layout class="QHBoxLayout" name="horizontalLayout_2"/>
-                 </item>
-                 <item>
-                  <widget class="QFrame" name="frame_4">
-                   <property name="minimumSize">
-                    <size>
-                     <width>0</width>
-                     <height>35</height>
-                    </size>
-                   </property>
-                   <property name="maximumSize">
-                    <size>
-                     <width>16777215</width>
-                     <height>20</height>
-                    </size>
-                   </property>
-                   <property name="frameShape">
-                    <enum>QFrame::NoFrame</enum>
-                   </property>
-                   <property name="frameShadow">
-                    <enum>QFrame::Raised</enum>
-                   </property>
-                   <layout class="QGridLayout" name="gridLayout_22"/>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QFrame" name="frame_3">
-                   <property name="styleSheet">
-                    <string notr="true">background:transparent;</string>
-                   </property>
-                   <property name="frameShape">
-                    <enum>QFrame::NoFrame</enum>
-                   </property>
-                   <property name="frameShadow">
-                    <enum>QFrame::Plain</enum>
-                   </property>
-                   <property name="lineWidth">
-                    <number>0</number>
-                   </property>
-                   <layout class="QGridLayout" name="gridLayout_21">
-                    <property name="topMargin">
-                     <number>0</number>
-                    </property>
-                    <property name="bottomMargin">
-                     <number>0</number>
-                    </property>
-                   </layout>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QListView" name="listTransactions">
-                   <property name="font">
-                    <font>
-                     <family>Ubuntu Condensed</family>
-                     <pointsize>11</pointsize>
-                     <italic>false</italic>
-                    </font>
-                   </property>
-                   <property name="styleSheet">
-                    <string notr="true">background:transparent;</string>
-                   </property>
-                   <property name="frameShape">
-                    <enum>QFrame::NoFrame</enum>
-                   </property>
-                   <property name="frameShadow">
-                    <enum>QFrame::Plain</enum>
-                   </property>
-                   <property name="lineWidth">
-                    <number>0</number>
-                   </property>
-                   <property name="verticalScrollBarPolicy">
-                    <enum>Qt::ScrollBarAlwaysOff</enum>
-                   </property>
-                   <property name="horizontalScrollBarPolicy">
-                    <enum>Qt::ScrollBarAlwaysOff</enum>
-                   </property>
-                   <property name="selectionMode">
-                    <enum>QAbstractItemView::NoSelection</enum>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </widget>
-              </item>
-             </layout>
-            </item>
-           </layout>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QFrame" name="lower_area_frame">
-        <property name="maximumSize">
-         <size>
-          <width>16777215</width>
-          <height>150</height>
-         </size>
-        </property>
-        <property name="styleSheet">
-         <string notr="true">background:transparent;</string>
-        </property>
-        <property name="frameShape">
-         <enum>QFrame::NoFrame</enum>
-        </property>
-        <property name="frameShadow">
-         <enum>QFrame::Raised</enum>
-        </property>
-        <layout class="QGridLayout" name="gridLayout_19">
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
-         <item row="0" column="1">
-          <widget class="QFrame" name="balance_area_frame">
-           <property name="styleSheet">
-            <string notr="true">background:transparent;</string>
-           </property>
-           <property name="frameShape">
-            <enum>QFrame::NoFrame</enum>
-           </property>
-           <property name="frameShadow">
-            <enum>QFrame::Plain</enum>
-           </property>
-           <property name="lineWidth">
-            <number>0</number>
-           </property>
-           <layout class="QGridLayout" name="gridLayout_11">
-            <property name="topMargin">
-             <number>0</number>
-            </property>
-            <property name="bottomMargin">
-             <number>0</number>
-            </property>
-            <item row="0" column="0">
-             <widget class="QFrame" name="balance_lable_frame">
-              <property name="styleSheet">
-               <string notr="true">background:transparent;</string>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::NoFrame</enum>
-              </property>
-              <property name="frameShadow">
-               <enum>QFrame::Plain</enum>
-              </property>
-              <property name="lineWidth">
-               <number>0</number>
-              </property>
-              <layout class="QGridLayout" name="gridLayout_4">
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item row="0" column="1">
-                <widget class="QLabel" name="label">
-                 <property name="maximumSize">
-                  <size>
-                   <width>102</width>
-                   <height>35</height>
-                  </size>
-                 </property>
-                 <property name="styleSheet">
-                  <string notr="true">background:transparent;</string>
-                 </property>
-                 <property name="text">
-                  <string/>
-                 </property>
-                 <property name="pixmap">
-                  <pixmap resource="../bitcoin.qrc">:/images/balance</pixmap>
-                 </property>
-                 <property name="scaledContents">
-                  <bool>true</bool>
-                 </property>
-                </widget>
-               </item>
-               <item row="0" column="2">
-                <spacer name="horizontalSpacer_18">
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-               <item row="0" column="0">
-                <spacer name="horizontalSpacer_19">
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
-             </widget>
-            </item>
-            <item row="1" column="0">
-             <widget class="QFrame" name="frame">
-              <property name="styleSheet">
-               <string notr="true">background:transparent;</string>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::NoFrame</enum>
-              </property>
-              <property name="frameShadow">
-               <enum>QFrame::Plain</enum>
-              </property>
-              <property name="lineWidth">
-               <number>0</number>
-              </property>
-              <layout class="QGridLayout" name="gridLayout">
-               <property name="sizeConstraint">
-                <enum>QLayout::SetMaximumSize</enum>
-               </property>
-               <property name="leftMargin">
-                <number>0</number>
-               </property>
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="rightMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <property name="spacing">
-                <number>0</number>
-               </property>
-               <item row="1" column="0">
-                <widget class="QFrame" name="frame_17">
-                 <property name="frameShape">
-                  <enum>QFrame::NoFrame</enum>
-                 </property>
-                 <property name="frameShadow">
-                  <enum>QFrame::Plain</enum>
-                 </property>
-                 <property name="lineWidth">
+                </property>
+                <property name="topMargin">
                   <number>0</number>
-                 </property>
-                 <layout class="QGridLayout" name="gridLayout_17">
-                  <property name="topMargin">
-                   <number>0</number>
-                  </property>
-                  <property name="bottomMargin">
-                   <number>0</number>
-                  </property>
-                  <item row="0" column="2">
-                   <widget class="QLabel" name="labelBalance">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="minimumSize">
-                     <size>
-                      <width>200</width>
-                      <height>30</height>
-                     </size>
-                    </property>
-                    <property name="font">
-                     <font>
-                      <family>Sans</family>
-                      <pointsize>18</pointsize>
-                      <weight>50</weight>
-                      <bold>false</bold>
-                     </font>
-                    </property>
-                    <property name="cursor">
-                     <cursorShape>IBeamCursor</cursorShape>
-                    </property>
-                    <property name="toolTip">
-                     <string>Your current balance</string>
-                    </property>
-                    <property name="text">
-                     <string notr="true">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; color:#333333;&quot;&gt;0.00000000&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                    </property>
-                    <property name="alignment">
-                     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                    </property>
-                    <property name="textInteractionFlags">
-                     <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByKeyboard|Qt::TextSelectableByMouse</set>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="1">
-                   <spacer name="horizontalSpacer_17">
+                </property>
+                <property name="rightMargin">
+                  <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                  <number>0</number>
+                </property>
+                <item>
+                  <spacer name="spacerStatsTop">
                     <property name="orientation">
-                     <enum>Qt::Horizontal</enum>
+                      <enum>Qt::Vertical</enum>
                     </property>
                     <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>40</width>
-                      <height>20</height>
-                     </size>
+                      <size>
+                        <width>0</width>
+                        <height>0</height>
+                      </size>
                     </property>
-                   </spacer>
-                  </item>
-                  <item row="0" column="4">
-                   <widget class="QLabel" name="labelTransactionsStatus">
-                    <property name="toolTip">
-                     <string>The displayed information may be out of date. Your wallet automatically synchronizes with the Elite network after a connection is established, but this process has not completed yet.</string>
+                  </spacer>
+                </item>
+                <item>
+                  <layout class="QHBoxLayout" name="layoutRow1">
+                    <property name="spacing">
+                      <number>8</number>
                     </property>
-                    <property name="styleSheet">
-                     <string notr="true">QLabel { color: red; }</string>
+                    <item>
+                      <widget class="QLabel" name="labelStakeText">
+                        <property name="text">
+                          <string>Stake:</string>
+                        </property>
+                        <property name="toolTip">
+                          <string>Total of coins that was staked, and do not yet count towards the current balance</string>
+                        </property>
+                      </widget>
+                    </item>
+                    <item>
+                      <widget class="QLabel" name="labelStake">
+                        <property name="text">
+                          <string notr="true">0</string>
+                        </property>
+                        <property name="toolTip">
+                          <string>Total of coins that was staked, and do not yet count towards the current balance</string>
+                        </property>
+                        <property name="textInteractionFlags">
+                          <set>Qt::TextSelectableByMouse</set>
+                        </property>
+                      </widget>
+                    </item>
+                    <item>
+                      <spacer name="spacerRow1">
+                        <property name="orientation">
+                          <enum>Qt::Horizontal</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                          <size>
+                            <width>0</width>
+                            <height>0</height>
+                          </size>
+                        </property>
+                      </spacer>
+                    </item>
+                  </layout>
+                </item>
+                <item>
+                  <layout class="QHBoxLayout" name="layoutRow2">
+                    <property name="spacing">
+                      <number>8</number>
                     </property>
-                    <property name="text">
-                     <string notr="true">(Out of sync)</string>
+                    <item>
+                      <widget class="QLabel" name="labelImmatureText">
+                        <property name="text">
+                          <string>Immatures:</string>
+                        </property>
+                        <property name="toolTip">
+                          <string>Mined balance that has not yet matured</string>
+                        </property>
+                      </widget>
+                    </item>
+                    <item>
+                      <widget class="QLabel" name="labelImmature">
+                        <property name="text">
+                          <string notr="true">0</string>
+                        </property>
+                        <property name="toolTip">
+                          <string>Mined balance that has not yet matured</string>
+                        </property>
+                        <property name="textInteractionFlags">
+                          <set>Qt::TextSelectableByMouse</set>
+                        </property>
+                      </widget>
+                    </item>
+                    <item>
+                      <spacer name="spacerRow2">
+                        <property name="orientation">
+                          <enum>Qt::Horizontal</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                          <size>
+                            <width>0</width>
+                            <height>0</height>
+                          </size>
+                        </property>
+                      </spacer>
+                    </item>
+                  </layout>
+                </item>
+                <item>
+                  <layout class="QHBoxLayout" name="layoutRow3">
+                    <property name="spacing">
+                      <number>8</number>
                     </property>
-                    <property name="alignment">
-                     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                    <item>
+                      <widget class="QLabel" name="labelUnconfirmedText">
+                        <property name="text">
+                          <string>Unconfirmed:</string>
+                        </property>
+                        <property name="toolTip">
+                          <string>Total of transactions that have yet to be confirmed, and do not yet count towards the current balance</string>
+                        </property>
+                      </widget>
+                    </item>
+                    <item>
+                      <widget class="QLabel" name="labelUnconfirmed">
+                        <property name="text">
+                          <string notr="true">0</string>
+                        </property>
+                        <property name="toolTip">
+                          <string>Total of transactions that have yet to be confirmed, and do not yet count towards the current balance</string>
+                        </property>
+                        <property name="textInteractionFlags">
+                          <set>Qt::TextSelectableByMouse</set>
+                        </property>
+                      </widget>
+                    </item>
+                    <item>
+                      <spacer name="spacerRow3">
+                        <property name="orientation">
+                          <enum>Qt::Horizontal</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                          <size>
+                            <width>0</width>
+                            <height>0</height>
+                          </size>
+                        </property>
+                      </spacer>
+                    </item>
+                  </layout>
+                </item>
+                <item>
+                  <layout class="QHBoxLayout" name="layoutRow4">
+                    <property name="spacing">
+                      <number>8</number>
                     </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="3">
-                   <spacer name="horizontalSpacer_4">
+                    <item>
+                      <widget class="QLabel" name="labelNumTransactionsText">
+                        <property name="text">
+                          <string>Number of Transactions:</string>
+                        </property>
+                        <property name="toolTip">
+                          <string>Total number of transactions in wallet</string>
+                        </property>
+                      </widget>
+                    </item>
+                    <item>
+                      <widget class="QLabel" name="labelNumTransactions">
+                        <property name="text">
+                          <string notr="true">0</string>
+                        </property>
+                        <property name="toolTip">
+                          <string>Total number of transactions in wallet</string>
+                        </property>
+                        <property name="textInteractionFlags">
+                          <set>Qt::TextSelectableByMouse</set>
+                        </property>
+                      </widget>
+                    </item>
+                    <item>
+                      <spacer name="spacerRow4">
+                        <property name="orientation">
+                          <enum>Qt::Horizontal</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                          <size>
+                            <width>0</width>
+                            <height>0</height>
+                          </size>
+                        </property>
+                      </spacer>
+                    </item>
+                  </layout>
+                </item>
+                <item>
+                  <spacer name="spacerStatsBottom">
                     <property name="orientation">
-                     <enum>Qt::Horizontal</enum>
+                      <enum>Qt::Vertical</enum>
                     </property>
                     <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>40</width>
-                      <height>20</height>
-                     </size>
+                      <size>
+                        <width>0</width>
+                        <height>0</height>
+                      </size>
                     </property>
-                   </spacer>
-                  </item>
-                  <item row="0" column="0">
-                   <widget class="QLabel" name="labelWalletStatus">
-                    <property name="toolTip">
-                     <string>The displayed information may be out of date. Your wallet automatically synchronizes with the Elite network after a connection is established, but this process has not completed yet.</string>
+                  </spacer>
+                </item>
+              </layout>
+            </widget>
+          </item>
+          <item>
+            <widget class="ScaledImage" name="crest">
+              <property name="sizePolicy">
+                <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                </sizepolicy>
+              </property>
+              <property name="minimumSize">
+                <size>
+                  <width>140</width>
+                  <height>90</height>
+                </size>
+              </property>
+            </widget>
+          </item>
+          <item>
+            <widget class="QWidget" name="infoColumn">
+              <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                </sizepolicy>
+              </property>
+              <layout class="QVBoxLayout" name="infoLayout">
+                <property name="spacing">
+                  <number>2</number>
+                </property>
+                <property name="leftMargin">
+                  <number>0</number>
+                </property>
+                <property name="topMargin">
+                  <number>0</number>
+                </property>
+                <property name="rightMargin">
+                  <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                  <number>0</number>
+                </property>
+                <item>
+                  <layout class="QHBoxLayout" name="socialLayout">
+                    <property name="spacing">
+                      <number>2</number>
                     </property>
-                    <property name="styleSheet">
-                     <string notr="true">QLabel { color: red; }</string>
-                    </property>
+                    <item>
+                      <spacer name="spacerSocial">
+                        <property name="orientation">
+                          <enum>Qt::Horizontal</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                          <size>
+                            <width>0</width>
+                            <height>0</height>
+                          </size>
+                        </property>
+                      </spacer>
+                    </item>
+                    <item>
+                      <widget class="QToolButton" name="buttonDiscord">
+                        <property name="toolTip">
+                          <string>Join the Elite community on Discord</string>
+                        </property>
+                        <property name="cursor">
+                          <cursorShape>PointingHandCursor</cursorShape>
+                        </property>
+                        <property name="iconSize">
+                          <size>
+                            <width>26</width>
+                            <height>26</height>
+                          </size>
+                        </property>
+                        <property name="autoRaise">
+                          <bool>true</bool>
+                        </property>
+                      </widget>
+                    </item>
+                    <item>
+                      <widget class="QToolButton" name="buttonX">
+                        <property name="toolTip">
+                          <string>Follow Elite on X (Twitter)</string>
+                        </property>
+                        <property name="cursor">
+                          <cursorShape>PointingHandCursor</cursorShape>
+                        </property>
+                        <property name="iconSize">
+                          <size>
+                            <width>26</width>
+                            <height>26</height>
+                          </size>
+                        </property>
+                        <property name="autoRaise">
+                          <bool>true</bool>
+                        </property>
+                      </widget>
+                    </item>
+                  </layout>
+                </item>
+                <item>
+                  <widget class="QLabel" name="labelStatusTitle">
                     <property name="text">
-                     <string notr="true">(Out of sync)</string>
+                      <string>ELITE STATUS</string>
                     </property>
                     <property name="alignment">
-                     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+                      <set>Qt::AlignHCenter|Qt::AlignVCenter</set>
                     </property>
-                   </widget>
-                  </item>
-                 </layout>
-                </widget>
-               </item>
+                  </widget>
+                </item>
+                <item>
+                  <widget class="QLabel" name="labelRoyalty">
+                    <property name="text">
+                      <string>Royalty</string>
+                    </property>
+                    <property name="alignment">
+                      <set>Qt::AlignHCenter|Qt::AlignVCenter</set>
+                    </property>
+                  </widget>
+                </item>
+                <item>
+                  <widget class="QLabel" name="labelAbout"><property name="sizePolicy"><sizepolicy hsizetype="Preferred" vsizetype="Ignored"><horstretch>0</horstretch><verstretch>1</verstretch></sizepolicy></property>
+                    <property name="text">
+                      <string>Elite coin is the gaming currency that brings the gaming world and cryptoworld together. We plan to achieve this by integrating Elite into games and allowing users to use Elite as an in-game currency. The idea is to make the process of earning and spending fun for everyone.</string>
+                    </property>
+                    <property name="wordWrap">
+                      <bool>true</bool>
+                    </property>
+                    <property name="alignment">
+                      <set>Qt::AlignLeft|Qt::AlignTop</set>
+                    </property>
+                  </widget>
+                </item>
               </layout>
-             </widget>
-            </item>
-           </layout>
-          </widget>
-         </item>
-         <item row="0" column="2">
-          <spacer name="horizontalSpacer_12">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>40</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-         <item row="0" column="0">
-          <spacer name="horizontalSpacer_3">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>40</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
+            </widget>
+          </item>
         </layout>
-       </widget>
       </item>
-      <item row="0" column="0">
-       <widget class="QFrame" name="top_area_frame">
-        <property name="styleSheet">
-         <string notr="true">background:transparent;</string>
-        </property>
-        <property name="frameShape">
-         <enum>QFrame::NoFrame</enum>
-        </property>
-        <property name="frameShadow">
-         <enum>QFrame::Plain</enum>
-        </property>
-        <property name="lineWidth">
-         <number>0</number>
-        </property>
-        <layout class="QGridLayout" name="gridLayout_16">
-         <property name="leftMargin">
-          <number>0</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>0</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
-         <property name="spacing">
-          <number>0</number>
-         </property>
-         <item row="0" column="0">
-          <widget class="QFrame" name="hot_coins_frame">
-           <property name="font">
-            <font>
-             <pointsize>11</pointsize>
-            </font>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background:transparent;</string>
-           </property>
-           <property name="frameShape">
-            <enum>QFrame::NoFrame</enum>
-           </property>
-           <property name="frameShadow">
-            <enum>QFrame::Raised</enum>
-           </property>
-           <layout class="QGridLayout" name="gridLayout_15">
+      <item>
+        <widget class="OrnamentFrame" name="txFrame">
+          <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+            </sizepolicy>
+          </property>
+          <layout class="QVBoxLayout" name="txLayout">
+            <property name="spacing">
+              <number>0</number>
+            </property>
             <property name="leftMargin">
-             <number>12</number>
+              <number>48</number>
+            </property>
+            <property name="topMargin">
+              <number>24</number>
+            </property>
+            <property name="rightMargin">
+              <number>48</number>
             </property>
             <property name="bottomMargin">
-             <number>0</number>
+              <number>12</number>
             </property>
-            <item row="2" column="1">
-             <widget class="QFrame" name="stake_frame">
-              <property name="maximumSize">
-               <size>
-                <width>16777215</width>
-                <height>50</height>
-               </size>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::NoFrame</enum>
-              </property>
-              <property name="frameShadow">
-               <enum>QFrame::Raised</enum>
-              </property>
-              <layout class="QGridLayout" name="gridLayout_6">
-               <property name="leftMargin">
-                <number>0</number>
-               </property>
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="rightMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item row="0" column="0">
-                <widget class="QFrame" name="sub_stake_frame">
-                 <property name="frameShape">
+            <item>
+              <widget class="QLabel" name="labelRecentTitle">
+                <property name="text">
+                  <string>Recent Transactions</string>
+                </property>
+                <property name="alignment">
+                  <set>Qt::AlignCenter</set>
+                </property>
+              </widget>
+            </item>
+            <item>
+              <widget class="QLabel" name="labelSyncStatus">
+                <property name="text">
+                  <string>(Out of sync with the Elite network)</string>
+                </property>
+                <property name="toolTip">
+                  <string>The displayed information may be out of date. Your wallet automatically synchronizes with the Elite network after a connection is established, but this process has not completed yet.</string>
+                </property>
+                <property name="alignment">
+                  <set>Qt::AlignCenter</set>
+                </property>
+              </widget>
+            </item>
+            <item>
+              <widget class="QListView" name="listTransactions">
+                <property name="frameShape">
                   <enum>QFrame::NoFrame</enum>
-                 </property>
-                 <property name="frameShadow">
-                  <enum>QFrame::Raised</enum>
-                 </property>
-                 <layout class="QGridLayout" name="gridLayout_7">
-                  <property name="topMargin">
-                   <number>1</number>
-                  </property>
-                  <property name="bottomMargin">
-                   <number>1</number>
-                  </property>
-                  <item row="0" column="1">
-                   <widget class="QLabel" name="labelStake">
-                    <property name="font">
-                     <font>
-                      <family>DejaVu Sans</family>
-                      <pointsize>12</pointsize>
-                     </font>
-                    </property>
-                    <property name="cursor">
-                     <cursorShape>IBeamCursor</cursorShape>
-                    </property>
-                    <property name="toolTip">
-                     <string>Total of coins that was staked, and do not yet count towards the current balance</string>
-                    </property>
-                    <property name="text">
-                     <string notr="true">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#333333;&quot;&gt;0 1337&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                    </property>
-                    <property name="textInteractionFlags">
-                     <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByKeyboard|Qt::TextSelectableByMouse</set>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="0">
-                   <widget class="QLabel" name="label_6">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="font">
-                     <font>
-                      <family>DejaVu Sans</family>
-                      <pointsize>12</pointsize>
-                     </font>
-                    </property>
-                    <property name="layoutDirection">
-                     <enum>Qt::LeftToRight</enum>
-                    </property>
-                    <property name="text">
-                     <string>Stake:</string>
-                    </property>
-                    <property name="alignment">
-                     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="2">
-                   <spacer name="horizontalSpacer_2">
-                    <property name="orientation">
-                     <enum>Qt::Horizontal</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>40</width>
-                      <height>20</height>
-                     </size>
-                    </property>
-                   </spacer>
-                  </item>
-                 </layout>
-                </widget>
-               </item>
-               <item row="0" column="1">
-                <spacer name="horizontalSpacer_13">
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
-             </widget>
+                </property>
+                <property name="verticalScrollBarPolicy">
+                  <enum>Qt::ScrollBarAlwaysOff</enum>
+                </property>
+                <property name="horizontalScrollBarPolicy">
+                  <enum>Qt::ScrollBarAlwaysOff</enum>
+                </property>
+                <property name="selectionMode">
+                  <enum>QAbstractItemView::NoSelection</enum>
+                </property>
+                <property name="cursor">
+                  <cursorShape>PointingHandCursor</cursorShape>
+                </property>
+                <property name="toolTip">
+                  <string>Your most recent transactions. Click one to see it in the transaction history.</string>
+                </property>
+              </widget>
             </item>
-            <item row="3" column="1">
-             <widget class="QFrame" name="unconfirmed_frame">
-              <property name="maximumSize">
-               <size>
-                <width>16777215</width>
-                <height>50</height>
-               </size>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::NoFrame</enum>
-              </property>
-              <property name="frameShadow">
-               <enum>QFrame::Raised</enum>
-              </property>
-              <layout class="QGridLayout" name="gridLayout_12">
-               <property name="leftMargin">
-                <number>0</number>
-               </property>
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="rightMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item row="0" column="0">
-                <widget class="QFrame" name="sub_unconfirmed_frame">
-                 <property name="frameShape">
-                  <enum>QFrame::NoFrame</enum>
-                 </property>
-                 <property name="frameShadow">
-                  <enum>QFrame::Raised</enum>
-                 </property>
-                 <layout class="QGridLayout" name="gridLayout_9">
-                  <property name="topMargin">
-                   <number>1</number>
-                  </property>
-                  <property name="bottomMargin">
-                   <number>1</number>
-                  </property>
-                  <item row="0" column="1">
-                   <widget class="QLabel" name="labelUnconfirmed">
-                    <property name="font">
-                     <font>
-                      <family>DejaVu Sans</family>
-                      <pointsize>12</pointsize>
-                     </font>
-                    </property>
-                    <property name="cursor">
-                     <cursorShape>IBeamCursor</cursorShape>
-                    </property>
-                    <property name="toolTip">
-                     <string>Total of transactions that have yet to be confirmed, and do not yet count towards the current balance</string>
-                    </property>
-                    <property name="text">
-                     <string notr="true">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#333333;&quot;&gt;0 1337&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                    </property>
-                    <property name="textInteractionFlags">
-                     <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByKeyboard|Qt::TextSelectableByMouse</set>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="0">
-                   <widget class="QLabel" name="label_3">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="font">
-                     <font>
-                      <family>DejaVu Sans</family>
-                      <pointsize>12</pointsize>
-                     </font>
-                    </property>
-                    <property name="text">
-                     <string>Unconfirmed:</string>
-                    </property>
-                    <property name="alignment">
-                     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="2">
-                   <spacer name="horizontalSpacer_7">
-                    <property name="orientation">
-                     <enum>Qt::Horizontal</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>40</width>
-                      <height>20</height>
-                     </size>
-                    </property>
-                   </spacer>
-                  </item>
-                 </layout>
-                </widget>
-               </item>
-               <item row="0" column="1">
-                <spacer name="horizontalSpacer_14">
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
-             </widget>
-            </item>
-            <item row="4" column="1">
-             <widget class="QFrame" name="number_txs_frame">
-              <property name="maximumSize">
-               <size>
-                <width>16777215</width>
-                <height>50</height>
-               </size>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::NoFrame</enum>
-              </property>
-              <property name="frameShadow">
-               <enum>QFrame::Raised</enum>
-              </property>
-              <layout class="QGridLayout" name="gridLayout_13">
-               <property name="leftMargin">
-                <number>0</number>
-               </property>
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="rightMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item row="0" column="0">
-                <widget class="QFrame" name="sub_number_txs_frame">
-                 <property name="frameShape">
-                  <enum>QFrame::NoFrame</enum>
-                 </property>
-                 <property name="frameShadow">
-                  <enum>QFrame::Raised</enum>
-                 </property>
-                 <layout class="QGridLayout" name="gridLayout_10">
-                  <property name="topMargin">
-                   <number>1</number>
-                  </property>
-                  <property name="bottomMargin">
-                   <number>1</number>
-                  </property>
-                  <item row="0" column="0">
-                   <widget class="QLabel" name="label_2">
-                    <property name="font">
-                     <font>
-                      <family>DejaVu Sans</family>
-                      <pointsize>12</pointsize>
-                     </font>
-                    </property>
-                    <property name="text">
-                     <string>Number of Transactions</string>
-                    </property>
-                    <property name="alignment">
-                     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="1">
-                   <widget class="QLabel" name="labelNumTransactions">
-                    <property name="font">
-                     <font>
-                      <family>DejaVu Sans</family>
-                      <pointsize>12</pointsize>
-                     </font>
-                    </property>
-                    <property name="toolTip">
-                     <string>Total number of transactions in wallet</string>
-                    </property>
-                    <property name="text">
-                     <string notr="true">0</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="2">
-                   <spacer name="horizontalSpacer_8">
-                    <property name="orientation">
-                     <enum>Qt::Horizontal</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>40</width>
-                      <height>20</height>
-                     </size>
-                    </property>
-                   </spacer>
-                  </item>
-                 </layout>
-                </widget>
-               </item>
-               <item row="0" column="1">
-                <spacer name="horizontalSpacer_15">
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
-             </widget>
-            </item>
-            <item row="2" column="0">
-             <spacer name="horizontalSpacer_16">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="sizeType">
-               <enum>QSizePolicy::Fixed</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>10</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="1" column="1">
-             <widget class="QFrame" name="immature_frame">
-              <property name="maximumSize">
-               <size>
-                <width>16777215</width>
-                <height>50</height>
-               </size>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::NoFrame</enum>
-              </property>
-              <property name="frameShadow">
-               <enum>QFrame::Raised</enum>
-              </property>
-              <layout class="QGridLayout" name="gridLayout_2">
-               <property name="leftMargin">
-                <number>0</number>
-               </property>
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="rightMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item row="0" column="0">
-                <widget class="QFrame" name="sub_immature_frame">
-                 <property name="frameShape">
-                  <enum>QFrame::NoFrame</enum>
-                 </property>
-                 <property name="frameShadow">
-                  <enum>QFrame::Raised</enum>
-                 </property>
-                 <layout class="QGridLayout" name="gridLayout_8">
-                  <property name="topMargin">
-                   <number>1</number>
-                  </property>
-                  <property name="bottomMargin">
-                   <number>1</number>
-                  </property>
-                  <item row="0" column="2">
-                   <spacer name="horizontalSpacer_6">
-                    <property name="orientation">
-                     <enum>Qt::Horizontal</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>40</width>
-                      <height>20</height>
-                     </size>
-                    </property>
-                   </spacer>
-                  </item>
-                  <item row="0" column="1">
-                   <widget class="QLabel" name="labelImmature">
-                    <property name="font">
-                     <font>
-                      <family>DejaVu Sans</family>
-                      <pointsize>12</pointsize>
-                     </font>
-                    </property>
-                    <property name="toolTip">
-                     <string>Mined balance that has not yet matured</string>
-                    </property>
-                    <property name="text">
-                     <string notr="true">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#333333;&quot;&gt;0 1337&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                    </property>
-                    <property name="textInteractionFlags">
-                     <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByKeyboard|Qt::TextSelectableByMouse</set>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="0">
-                   <widget class="QLabel" name="labelImmatureText">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="font">
-                     <font>
-                      <family>DejaVu Sans</family>
-                      <pointsize>12</pointsize>
-                     </font>
-                    </property>
-                    <property name="layoutDirection">
-                     <enum>Qt::RightToLeft</enum>
-                    </property>
-                    <property name="text">
-                     <string>Immature:</string>
-                    </property>
-                    <property name="alignment">
-                     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
-                </widget>
-               </item>
-               <item row="0" column="1">
-                <spacer name="horizontalSpacer_11">
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
-             </widget>
-            </item>
-            <item row="0" column="1">
-             <spacer name="verticalSpacer_3">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>40</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-           </layout>
-          </widget>
-         </item>
-         <item row="0" column="1">
-          <widget class="QFrame" name="links_frame">
-           <property name="minimumSize">
-            <size>
-             <width>250</width>
-             <height>280</height>
-            </size>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">background:transparent;</string>
-           </property>
-           <property name="frameShape">
-            <enum>QFrame::NoFrame</enum>
-           </property>
-           <property name="frameShadow">
-            <enum>QFrame::Raised</enum>
-           </property>
-           <layout class="QGridLayout" name="gridLayout_5">
-            <property name="bottomMargin">
-             <number>0</number>
-            </property>
-            <item row="0" column="0">
-             <spacer name="horizontalSpacer_5">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-           </layout>
-          </widget>
-         </item>
-        </layout>
-       </widget>
+          </layout>
+        </widget>
       </item>
-     </layout>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <resources>
-  <include location="../bitcoin.qrc"/>
- </resources>
- <connections/>
+      <item>
+        <layout class="QVBoxLayout" name="balanceLayout">
+          <property name="spacing">
+            <number>0</number>
+          </property>
+          <property name="leftMargin">
+            <number>0</number>
+          </property>
+          <property name="topMargin">
+            <number>0</number>
+          </property>
+          <property name="rightMargin">
+            <number>0</number>
+          </property>
+          <property name="bottomMargin">
+            <number>0</number>
+          </property>
+          <item>
+            <widget class="QLabel" name="labelBalanceTitle">
+              <property name="text">
+                <string>Balance</string>
+              </property>
+              <property name="alignment">
+                <set>Qt::AlignCenter</set>
+              </property>
+            </widget>
+          </item>
+          <item>
+            <widget class="QLabel" name="labelBalance">
+              <property name="text">
+                <string notr="true">0</string>
+              </property>
+              <property name="toolTip">
+                <string>Your current spendable balance</string>
+              </property>
+              <property name="textInteractionFlags">
+                <set>Qt::TextSelectableByMouse</set>
+              </property>
+              <property name="alignment">
+                <set>Qt::AlignCenter</set>
+              </property>
+            </widget>
+          </item>
+          <item>
+            <layout class="QHBoxLayout" name="lockLayout">
+              <item>
+                <spacer name="spacerLockLeft">
+                  <property name="orientation">
+                    <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                    <size>
+                      <width>0</width>
+                      <height>0</height>
+                    </size>
+                  </property>
+                </spacer>
+              </item>
+              <item>
+                <widget class="QPushButton" name="buttonLock">
+                  <property name="cursor">
+                    <cursorShape>PointingHandCursor</cursorShape>
+                  </property>
+                  <property name="focusPolicy">
+                    <enum>Qt::NoFocus</enum>
+                  </property>
+                  <property name="text">
+                    <string notr="true">LOCKED</string>
+                  </property>
+                </widget>
+              </item>
+              <item>
+                <spacer name="spacerLockRight">
+                  <property name="orientation">
+                    <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                    <size>
+                      <width>0</width>
+                      <height>0</height>
+                    </size>
+                  </property>
+                </spacer>
+              </item>
+            </layout>
+          </item>
+        </layout>
+      </item>
+    </layout>
+  </widget>
+  <customwidgets>
+    <customwidget>
+      <class>ScaledImage</class>
+      <extends>QWidget</extends>
+      <header>overviewpage.h</header>
+    </customwidget>
+    <customwidget>
+      <class>OrnamentFrame</class>
+      <extends>QFrame</extends>
+      <header>overviewpage.h</header>
+      <container>1</container>
+    </customwidget>
+  </customwidgets>
+  <resources/>
+  <connections/>
 </ui>

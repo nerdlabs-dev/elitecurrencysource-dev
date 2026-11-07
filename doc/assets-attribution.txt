@@ -8,10 +8,9 @@ Designer: Wladimir van der Laan
 License: MIT
 
 Icon: src/qt/res/icons/address-book.png, src/qt/res/icons/export.png,
-      src/qt/res/icons/history.png, src/qt/res/icons/key.png,
-      src/qt/res/icons/lock_*.png, src/qt/res/icons/overview.png,
-      src/qt/res/icons/receive.png, src/qt/res/icons/send.png,
-      src/qt/res/icons/synced.png, src/qt/res/icons/filesave.png
+      src/qt/res/icons/key.png, src/qt/res/icons/lock_*.png,
+      src/qt/res/icons/send.png, src/qt/res/icons/synced.png,
+      src/qt/res/icons/filesave.png
 Icon Pack: NUVOLA ICON THEME for KDE 3.x
 Designer: David Vignoni (david@icon-king.com)
           ICON KING - www.icon-king.com
@@ -43,16 +42,19 @@ Designer: Bitboy (optimized for 16x16 by Wladimir van der Laan)
 License: Public Domain
 Site: http://forum.bitcoin.org/?topic=1756.0
 
-Icon:  scripts/img/reload.xcf (modified),src/qt/res/movies/update_spinner.mng
-Icon Pack: Kids
-Designer: Everaldo (Everaldo Coelho)
-License: GNU/GPL 
-Site: http://findicons.com/icon/17102/reload?id=17102
-
 Image: src/qt/res/images/splash2.jpg (Wallet image)
 Designer: Crobbo (forum)
 Site: https://bitcointalk.org/index.php?topic=32273.0
 License: Public domain
+
+Font: src/qt/res/fonts/Oswald-Light.ttf (the Light weight of the Oswald
+      variable font, saved as a single static font)
+Designer: The Oswald Project Authors (https://github.com/googlefonts/OswaldFont)
+License: SIL Open Font License 1.1 (src/qt/res/fonts/OFL-Oswald.txt)
+
+Font: src/qt/res/fonts/PinyonScript-Regular.ttf
+Designer: The Pinyon Project Authors (https://github.com/SorkinType/Pinyon)
+License: SIL Open Font License 1.1 (src/qt/res/fonts/OFL-PinyonScript.txt)
 
 1337 Logo
 Designer: Evan

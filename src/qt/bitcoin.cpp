@@ -123,10 +123,23 @@ int main(int argc, char *argv[])
 #endif
 
     Q_INIT_RESOURCE(bitcoin);
+#if QT_VERSION >= 0x050600
+    // Draw the window at the screen's scale (Windows display scaling, 4K and
+    // Retina screens) instead of tiny, with sharp images
+    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+#endif
+#if QT_VERSION >= 0x050E00
+    // Scale by exactly 125% or 150%, not rounded to 100% or 200%
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+#endif
     QApplication app(argc, argv);
 
     // Install global event filter that makes sure that long tooltips can be word-wrapped
     app.installEventFilter(new GUIUtil::ToolTipToRichTextFilter(TOOLTIP_WRAP_THRESHOLD, &app));
+
+    // Fonts the wallet's look is drawn with
+    GUIUtil::loadThemeFonts();
 
     // Command-line options take precedence:
     ParseParameters(argc, argv);

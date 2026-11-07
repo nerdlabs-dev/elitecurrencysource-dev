@@ -478,7 +478,10 @@ bool AppInit2()
     // ********************************************************* Step 4: application initialization: dir lock, daemonize, pidfile, debug log
 
     std::string strDataDir = GetDataDir().string();
-    std::string strWalletFileName = GetArg("-wallet", "wallet.dat");
+    // Set the global (a local variable of the same name used to hide it, so it
+    // stayed empty and the wallet's first start crashed in the GUI's settings
+    // migration, OptionsModel::Upgrade, opening a database with no name)
+    strWalletFileName = GetArg("-wallet", "wallet.dat");
 
     // strWalletFileName must be a plain filename without a directory
     // (filesystem::basename/extension were removed in Boost 1.85)

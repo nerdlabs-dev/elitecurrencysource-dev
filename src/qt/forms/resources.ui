@@ -42,7 +42,7 @@
        <widget class="QFrame" name="frame_3">
         <property name="minimumSize">
          <size>
-          <width>200</width>
+          <width>150</width>
           <height>0</height>
          </size>
         </property>
@@ -133,7 +133,7 @@
        <widget class="QFrame" name="frame_6">
         <property name="minimumSize">
          <size>
-          <width>200</width>
+          <width>150</width>
           <height>0</height>
          </size>
         </property>
@@ -221,7 +221,7 @@
        <widget class="QFrame" name="frame_7">
         <property name="minimumSize">
          <size>
-          <width>200</width>
+          <width>150</width>
           <height>0</height>
          </size>
         </property>
@@ -309,7 +309,7 @@
        <widget class="QFrame" name="frame_5">
         <property name="minimumSize">
          <size>
-          <width>200</width>
+          <width>150</width>
           <height>0</height>
          </size>
         </property>
@@ -397,7 +397,7 @@
        <widget class="QFrame" name="frame_8">
         <property name="minimumSize">
          <size>
-          <width>200</width>
+          <width>150</width>
           <height>0</height>
          </size>
         </property>
@@ -485,7 +485,7 @@
        <widget class="QFrame" name="frame_9">
         <property name="minimumSize">
          <size>
-          <width>200</width>
+          <width>150</width>
           <height>0</height>
          </size>
         </property>
@@ -573,7 +573,7 @@
        <widget class="QFrame" name="frame_2">
         <property name="minimumSize">
          <size>
-          <width>200</width>
+          <width>150</width>
           <height>0</height>
          </size>
         </property>
@@ -661,7 +661,7 @@
        <widget class="QFrame" name="frame_4">
         <property name="minimumSize">
          <size>
-          <width>200</width>
+          <width>150</width>
           <height>0</height>
          </size>
         </property>

@@ -61,6 +61,7 @@
 #include <QDragEnterEvent>
 #include <QUrl>
 #include <QStyle>
+#include <QSettings>
 
 #include <iostream>
 
@@ -82,8 +83,10 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     rpcConsole(0)
 {
     updateStyle();
-    setFixedSize(960,710);
-    //resize(960, 740);
+    // The window can be resized (it used to be fixed at 960x710); every page
+    // lays itself out to the space it gets
+    setMinimumSize(800, 580);
+    resize(960, 710);
     setWindowTitle(tr("Elite Currency"));
 
 
@@ -140,29 +143,34 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     centralWidget->addWidget(resourcesPage);
     setCentralWidget(centralWidget);
 
-    // Create status bar
-    statusBar();
+    // Create status bar: a row with the sync text on the left and the status
+    // icons on the right, and under it the sync progress bar across the
+    // whole window (shown while blocks are downloading)
+    statusBar()->setSizeGripEnabled(false);
+    QWidget *statusArea = new QWidget();
+    statusArea->setObjectName("statusArea");
+    QVBoxLayout *statusLayout = new QVBoxLayout(statusArea);
+    statusLayout->setContentsMargins(16, 0, 16, 6);
+    statusLayout->setSpacing(4);
+    QHBoxLayout *statusRow = new QHBoxLayout();
+    statusRow->setSpacing(10);
+    statusLayout->addLayout(statusRow);
 
     // Status bar notification icons
     QFrame *frameBlocks = new QFrame();
     frameBlocks->setContentsMargins(0,0,0,0);
     frameBlocks->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
     QHBoxLayout *frameBlocksLayout = new QHBoxLayout(frameBlocks);
-    frameBlocksLayout->setContentsMargins(3,0,3,0);
-    frameBlocksLayout->setSpacing(3);
+    frameBlocksLayout->setContentsMargins(0,0,0,0);
+    frameBlocksLayout->setSpacing(8);
     labelEncryptionIcon = new QLabel();
     labelStakingIcon = new QLabel();
     labelConnectionsIcon = new QLabel();
     labelBlocksIcon = new QLabel();
-    frameBlocksLayout->addStretch();
     frameBlocksLayout->addWidget(labelEncryptionIcon);
-    frameBlocksLayout->addStretch();
     frameBlocksLayout->addWidget(labelStakingIcon);
-    frameBlocksLayout->addStretch();
     frameBlocksLayout->addWidget(labelConnectionsIcon);
-    frameBlocksLayout->addStretch();
     frameBlocksLayout->addWidget(labelBlocksIcon);
-    frameBlocksLayout->addStretch();
 
     if (GetBoolArg("-staking", true))
     {
@@ -172,34 +180,27 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
         updateStakingIcon();
     }
 
-    // Progress bar and label for blocks download
+    // Progress bar and label for blocks download (the theme draws the bar as
+    // a rounded gold bar; the text goes in the label above it)
     progressBarLabel = new QLabel();
+    progressBarLabel->setObjectName("progressBarLabel");
     progressBarLabel->setVisible(false);
     progressBar = new QProgressBar();
-    progressBar->setAlignment(Qt::AlignCenter);
+    progressBar->setTextVisible(false);
+    progressBar->setFixedHeight(14);
     progressBar->setVisible(false);
 
-    // Override style sheet for progress bar for styles that have a segmented progress bar,
-    // as they make the text unreadable (workaround for issue #1071)
-    // See https://qt-project.org/doc/qt-4.8/gallery.html
-    QString curStyle = qApp->style()->metaObject()->className();
-    if(curStyle == "QWindowsStyle" || curStyle == "QWindowsXPStyle")
-    {
-        progressBar->setStyleSheet("QProgressBar { background-color: #e8e8e8; border: 1px solid grey; border-radius: 7px; padding: 1px; text-align: center; } QProgressBar::chunk { background: QLinearGradient(x1: 0, y1: 0, x2: 1, y2: 0, stop: 0 #FF8000, stop: 1 orange); border-radius: 7px; margin: 0px; }");
-    }
-
-    statusBar()->addWidget(progressBarLabel);
-    statusBar()->addWidget(progressBar);
-    statusBar()->addPermanentWidget(frameBlocks);
+    statusRow->addWidget(progressBarLabel);
+    statusRow->addStretch();
+    statusRow->addWidget(frameBlocks);
+    statusLayout->addWidget(progressBar);
+    statusBar()->addWidget(statusArea, 1);
 
     syncIconMovie = new QMovie(":/icons/notsynced", "png", this);
 
     // Clicking on a transaction on the overview page simply sends you to transaction history page
     connect(overviewPage, SIGNAL(transactionClicked(QModelIndex)), this, SLOT(gotoHistoryPage()));
     connect(overviewPage, SIGNAL(transactionClicked(QModelIndex)), transactionView, SLOT(focusTransaction(QModelIndex)));
-
-    // Clicking on multisend button in the address book sends you to the multisend page
-    connect(addressBookPage, SIGNAL(multiSendSignal(QString)), this, SLOT(multiSendClicked(QString)));
 
     // Double-clicking on a transaction on the transaction history page shows details
     connect(transactionView, SIGNAL(doubleClicked(QModelIndex)), transactionView, SLOT(showDetails()));
@@ -212,11 +213,23 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     // Clicking on "Sign Message" in the receive coins page sends you to the sign message tab
     connect(receiveCoinsPage, SIGNAL(signMessage(QString)), this, SLOT(gotoSignMessageTab(QString)));
 
+    // The lock button on the overview page
+    connect(overviewPage, SIGNAL(unlockWalletClicked()), unlockWalletAction, SLOT(trigger()));
+    connect(overviewPage, SIGNAL(lockWalletClicked()), lockWalletAction, SLOT(trigger()));
+    connect(overviewPage, SIGNAL(encryptWalletClicked()), encryptWalletAction, SLOT(trigger()));
+
     gotoOverviewPage();
+
+    // Open at the size and place the window had when it was last closed
+    QSettings settings;
+    restoreGeometry(settings.value("MainWindowGeometry").toByteArray());
 }
 
 BitcoinGUI::~BitcoinGUI()
 {
+    QSettings settings;
+    settings.setValue("MainWindowGeometry", saveGeometry());
+
     if(trayIcon) // Hide tray icon, as deleting will let it linger until quit (on Ubuntu)
         trayIcon->hide();
 #ifdef Q_OS_MAC
@@ -343,8 +356,9 @@ void BitcoinGUI::createMenuBar()
     // Create a decoupled menu bar on Mac which stays even if the window is closed
     appMenuBar = new QMenuBar();
 #else
-    // Get the main window's menu bar on other platforms
-    appMenuBar = menuBar();
+    // On other platforms the menu bar goes in the window's header, under the
+    // navigation (see createToolBars)
+    appMenuBar = new QMenuBar();
 #endif
 
     // Configure the menus
@@ -377,38 +391,94 @@ void BitcoinGUI::createMenuBar()
 
 void BitcoinGUI::createToolBars()
 {
-    //disabled :flapmin
+    // The window's header: the page links spread across the top like a web
+    // page's navigation, with the File / Settings / Help menus in small type
+    // under them (on macOS the menus are in the system menu bar)
+    QWidget *header = new QWidget(this);
+    header->setObjectName("navHeader");
+    QVBoxLayout *headerLayout = new QVBoxLayout(header);
+    headerLayout->setContentsMargins(0, 0, 0, 0);
+    headerLayout->setSpacing(0);
 
-    // logo toolbar: disabled
+    QToolBar *toolbar = navBar = new QToolBar(tr("Actions toolbar"), header);
+    toolbar->setObjectName("navBar");
+    toolbar->setMovable(false);
+    toolbar->setFloatable(false);
+    toolbar->setToolButtonStyle(Qt::ToolButtonTextOnly);
 
-    //mainIcon = new QLabel (this);
-    //mainIcon->setPixmap(QPixmap(":icons/logo"));
-    //mainIcon->show();
-	
-    //QToolBar *toolbar = addToolBar(tr("Logo toolbar"));
-    //addToolBar(Qt::TopToolBarArea,toolbar);
-    //toolbar->setOrientation(Qt::Horizontal);
-    //toolbar->setFloatable(false);
-    //toolbar->setMovable(false);
-    //toolbar->addWidget(mainIcon);
-	
-    QToolBar *toolbar2 = addToolBar(tr("Actions toolbar"));
-	addToolBar(Qt::TopToolBarArea,toolbar2);
-    toolbar2->setOrientation(Qt::Horizontal);
-	toolbar2->setFloatable(false);
-    toolbar2->setMovable(false);
-    toolbar2->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-    toolbar2->addAction(overviewAction);
-    toolbar2->addAction(sendCoinsAction);
-    toolbar2->addAction(receiveCoinsAction);
-    toolbar2->addAction(historyAction);
-    toolbar2->addAction(addressBookAction);
-    toolbar2->addAction(resourcesAction);
-    toolbar2->addAction(openRPCConsoleAction);
-    toolbar2->addAction(exportAction);
+    QList<QAction*> &pages = navActions;
+    pages << overviewAction << sendCoinsAction << receiveCoinsAction << historyAction
+          << addressBookAction << multiSendAction << resourcesAction << openRPCConsoleAction;
+    QFont navFont = GUIUtil::themeFont(GUIUtil::FontCondensed, 21, 3.5);
+    navFont.setCapitalization(QFont::AllUppercase);
+    for (int i = 0; i <= pages.size(); i++)
+    {
+        // Stretchable gaps before, between and after the links; the ones
+        // between stop growing, so on a wide window the links stay together
+        QWidget *gap = new QWidget(toolbar);
+        gap->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        gap->setMinimumWidth(i == 0 || i == pages.size() ? 8 : 4);
+        if (i > 0 && i < pages.size())
+            gap->setMaximumWidth(72);
+        toolbar->addWidget(gap);
+        if (i == pages.size())
+            break;
+        toolbar->addAction(pages[i]);
+        QWidget *button = toolbar->widgetForAction(pages[i]);
+        button->setFont(navFont);
+        button->setCursor(Qt::PointingHandCursor);
+    }
+    fitNavigation();
+    headerLayout->addWidget(toolbar);
 
+#ifndef Q_OS_MAC
+    appMenuBar->setObjectName("navMenu");
+    QFont menuFont = GUIUtil::themeFont(GUIUtil::FontCondensed, 12, 2);
+    menuFont.setCapitalization(QFont::AllUppercase);
+    appMenuBar->setFont(menuFont);
+    headerLayout->addWidget(appMenuBar);
+#endif
 
+    setMenuWidget(header);
+}
 
+void BitcoinGUI::fitNavigation()
+{
+    // The largest type, up to 21px, at which all the links fit across the
+    // window, so none of them disappear behind the toolbar's overflow arrow
+    // (allowing for the buttons' padding and the gaps between them)
+    int available = width() - 48 - (navActions.size() - 1) * 4;
+    for (int size = 21; size >= 12; size--)
+    {
+        qreal spacing = size / 6.0;
+        QFont font = GUIUtil::themeFont(GUIUtil::FontCondensed, size, spacing);
+        font.setCapitalization(QFont::AllUppercase);
+        QFontMetrics metrics(font);
+        int needed = 0;
+        foreach (QAction *action, navActions)
+        {
+            QString text = action->text().remove('&').toUpper();
+#if QT_VERSION >= 0x050B00
+            needed += metrics.horizontalAdvance(text) + 16;
+#else
+            needed += metrics.width(text) + 16;
+#endif
+        }
+        if (needed <= available || size == 12)
+        {
+            foreach (QAction *action, navActions)
+                if (QWidget *button = navBar->widgetForAction(action))
+                    button->setFont(font);
+            break;
+        }
+    }
+}
+
+void BitcoinGUI::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    if (!navActions.isEmpty())
+        fitNavigation();
 }
 
 void BitcoinGUI::setClientModel(ClientModel *clientModel)
@@ -599,9 +669,9 @@ void BitcoinGUI::setNumBlocks(int count, int nTotalBlocks)
 
         if (strStatusBarWarnings.isEmpty())
         {
-            progressBarLabel->setText(tr("Synchronizing with network..."));
-            progressBarLabel->setVisible(false);
-            progressBar->setFormat(tr("Synchronizing:   %n block(s) remaining", "", nRemainingBlocks));
+            progressBarLabel->setText(tr("Synchronizing with network...") + "   " +
+                                      tr("%n block(s) remaining", "", nRemainingBlocks));
+            progressBarLabel->setVisible(true);
             progressBar->setMaximum(nTotalBlocks);
             progressBar->setValue(count);
             progressBar->setVisible(true);
@@ -1082,7 +1152,10 @@ void BitcoinGUI::updateStyle()
     if (!fUse1337Theme)
         return;
 
-    QString qssPath = QString::fromStdString( GetDataDir().string() ) + "/1337-3.qss";
+    // The theme is written to the data directory the first time, where it
+    // can be edited. (The file name has the theme's version in it, so a new
+    // look isn't hidden by the copy an older version of the wallet wrote.)
+    QString qssPath = QString::fromStdString( GetDataDir().string() ) + "/1337-4.qss";
 
     QFile f( qssPath );
 
