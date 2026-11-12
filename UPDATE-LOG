@@ -11,6 +11,14 @@ Faster sync - sync peer is chosen and replaced when it stalls or disconnects (wa
 Faster sync - stall watchdog asks again after 60s without a new block, switches peer after two stalls
 Faster sync - blocks offered by the sync peer are requested immediately (no 2 minute retry delay)
 Faster sync - larger database cache by default (-dbcache=100)
+Faster sync - sync peer is picked from the tallest peers (newer wallets first among them), not a peer that is itself still syncing
+Faster sync - moves on right away when the sync peer has no more blocks and another peer is ahead (it used to wait forever)
+Faster sync - no more walking back to the sync-checkpoint for every new block
+Faster sync - each block's X11 hash is computed once instead of every time it is needed
+Faster sync - blocks aren't announced to other peers while still catching up
+Added - debug.log line every 1000 blocks while syncing: blocks per second and time spent checking blocks
+Added - getpeerinfo: knownheight (highest block the peer is known to have)
+Wallet look - sync bar shows the time left (e.g. "about 2 h 10 min left"); tooltip has blocks per second and blocks to go
 Memory - orphan blocks capped (-maxorphanblocksmib, default 40)
 Memory - getdata requests answered as the send buffer drains instead of all at once
 Memory - old block/transaction requests are forgotten; per-peer request queue capped

@@ -76,6 +76,7 @@ Value getpeerinfo(const Array& params, bool fHelp)
         obj.push_back(Pair("inbound", stats.fInbound));
         obj.push_back(Pair("addnode", stats.fAddedNode));
         obj.push_back(Pair("startingheight", stats.nStartingHeight));
+        obj.push_back(Pair("knownheight", stats.nKnownHeight));
         obj.push_back(Pair("banscore", stats.nMisbehavior));
         obj.push_back(Pair("syncnode", stats.fSyncNode));
 

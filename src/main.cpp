@@ -53,6 +53,8 @@ unsigned int nModifierInterval = 10 * 60; // time to elapse before new modifier 
 int nCoinbaseMaturity = 5;
 CBlockIndex* pindexGenesisBlock = NULL;
 int nBestHeight = -1;
+std::atomic<int> nBestHeightUI(-1);
+std::atomic<int64_t> nBestTimeUI(0);
 
 uint256 nBestChainTrust = 0;
 uint256 nBestInvalidTrust = 0;
@@ -1996,6 +1998,8 @@ bool CBlock::SetBestChain(CTxDB& txdb, CBlockIndex* pindexNew)
     pindexBest = pindexNew;
     pblockindexFBBHLast = NULL;
     nBestHeight = pindexBest->nHeight;
+    nBestHeightUI = nBestHeight;
+    nBestTimeUI = pindexBest->GetBlockTime();
     nBestChainTrust = pindexNew->nChainTrust;
     nTimeBestReceived = GetTime();
     nTransactionsUpdated++;
@@ -2344,9 +2348,13 @@ bool CBlock::AcceptBlock()
     if (!AddToBlockIndex(nFile, nBlockPos, hashProof))
         return error("AcceptBlock() : AddToBlockIndex failed");
 
-    // Relay inventory, but don't relay old inventory during initial block download
+    // Relay inventory, but don't relay old inventory during initial block download.
+    // While we are still catching up (the block is more than a day old) every
+    // block we add is old news: a peer that is ahead of us already has it, and
+    // a peer behind us can't connect it and only answers with getdata and
+    // getblocks requests that keep both nodes busy.
     int nBlockEstimate = Checkpoints::GetTotalBlocksEstimate();
-    if (hashBestChain == hash)
+    if (hashBestChain == hash && GetBlockTime() > GetAdjustedTime() - 24 * 60 * 60)
     {
         LOCK(cs_vNodes);
         BOOST_FOREACH(CNode* pnode, vNodes)
@@ -3187,6 +3195,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             vRecv >> pfrom->strSubVer;
         if (!vRecv.empty())
             vRecv >> pfrom->nStartingHeight;
+        pfrom->nKnownHeight = pfrom->nStartingHeight;
 
         if (pfrom->fInbound && addrMe.IsRoutable())
         {
@@ -3381,6 +3390,14 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             if (fShutdown)
                 return true;
             pfrom->AddInventoryKnown(inv);
+
+            // A peer announcing a block we already have indexed has at least that height
+            if (inv.type == MSG_BLOCK)
+            {
+                map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(inv.hash);
+                if (mi != mapBlockIndex.end() && mi->second->nHeight > pfrom->nKnownHeight)
+                    pfrom->nKnownHeight = mi->second->nHeight;
+            }
 
             bool fAlreadyHave = AlreadyHave(txdb, inv);
             if (fDebug)
@@ -3601,9 +3618,47 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         CInv inv(MSG_BLOCK, hashBlock);
         pfrom->AddInventoryKnown(inv);
 
+        int64_t nProcessStart = GetTimeMicros();
         if (ProcessBlock(pfrom, &block))
             mapAlreadyAskedFor.erase(inv);
         if (block.nDoS) pfrom->Misbehaving(block.nDoS);
+
+        // While catching up, a line every 1000 blocks with the download speed
+        // and how much of it is our own checking and storing of blocks (the
+        // rest is waiting on peers)
+        static int64_t nSyncLogStart = 0, nSyncLogBusy = 0;
+        static int nSyncLogBlocks = 0, nSyncLogHeight = 0;
+        if (block.GetBlockTime() < GetAdjustedTime() - 24 * 60 * 60)
+        {
+            int64_t nNow = GetTimeMicros();
+            if (nSyncLogStart == 0 || nBestHeight < nSyncLogHeight)
+            {
+                nSyncLogStart = nProcessStart;
+                nSyncLogBusy = 0;
+                nSyncLogBlocks = 0;
+                nSyncLogHeight = nBestHeight;
+            }
+            nSyncLogBusy += nNow - nProcessStart;
+            nSyncLogBlocks++;
+            if (nBestHeight - nSyncLogHeight >= 1000)
+            {
+                double dSecs = std::max((int64_t)1, nNow - nSyncLogStart) / 1e6;
+                printf("sync: height %d, %.0f blocks/s over the last %d, %.2f ms per block checking and storing (%.0f%% of the time)\n",
+                       nBestHeight, (nBestHeight - nSyncLogHeight) / dSecs, nBestHeight - nSyncLogHeight,
+                       nSyncLogBusy / 1000.0 / nSyncLogBlocks, 100.0 * nSyncLogBusy / 1e6 / dSecs);
+                nSyncLogStart = nNow;
+                nSyncLogBusy = 0;
+                nSyncLogBlocks = 0;
+                nSyncLogHeight = nBestHeight;
+            }
+        }
+        else
+            nSyncLogStart = 0;
+
+        // The peer that sent this block has at least its height
+        map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+        if (mi != mapBlockIndex.end() && mi->second->nHeight > pfrom->nKnownHeight)
+            pfrom->nKnownHeight = mi->second->nHeight;
     }
 
 
@@ -3904,12 +3959,12 @@ bool ProcessMessages(CNode* pfrom)
 
 bool CanSyncFrom(const CNode* pnode)
 {
-    // Same conditions as before for asking a peer for blocks: a full node,
-    // not a one-shot connection, not far behind us, and a version that serves
-    // blocks
+    // A full node, not a one-shot connection, not far behind us, and a
+    // version that serves blocks. (How tall it is compared with the other
+    // peers is up to StartSync in net.cpp.)
     return !pnode->fClient && !pnode->fOneShot && pnode->nVersion != 0 &&
            pnode->fSuccessfullyConnected &&
-           (pnode->nStartingHeight > (nBestHeight - 144)) &&
+           (pnode->nKnownHeight > (nBestHeight - 144)) &&
            (pnode->nVersion < NOBLKS_VERSION_START ||
             pnode->nVersion > (GetAdjustedTime() > FORK_TIME6 ? NOBLKS_VERSION_END_FORK : NOBLKS_VERSION_END));
 }
@@ -3967,7 +4022,7 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
         // used to wait until someone mined a new block. Ask again, and if the
         // sync peer stays stuck, switch to another peer.
         if (pto->pindexLastGetBlocksBegin != NULL &&
-            (pto->nStartingHeight > nBestHeight || IsInitialBlockDownload()))
+            (pto->nKnownHeight > nBestHeight || IsInitialBlockDownload()))
         {
             int64_t nNow = GetTime();
             if (nNow - nTimeBestReceived > SYNC_STALL_TIMEOUT &&
@@ -3990,7 +4045,7 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
                 else
                 {
                     printf("sync stalled at height %d (peer %s reported %d), asking again\n",
-                           nBestHeight, pto->addrName.c_str(), pto->nStartingHeight);
+                           nBestHeight, pto->addrName.c_str(), pto->nKnownHeight);
                     pto->pindexLastGetBlocksBegin = NULL;
                     pto->hashLastGetBlocksEnd = 0;
                     pto->PushGetBlocks(pindexBest, uint256(0));

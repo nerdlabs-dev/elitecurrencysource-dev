@@ -4,6 +4,11 @@
 /* Milliseconds between model updates */
 static const int MODEL_UPDATE_DELAY = 500;
 
+/* Sync progress bar: how often the time-left estimate is recomputed, and the
+   stretch of time the download rate is averaged over (milliseconds) */
+static const int SYNC_ESTIMATE_DELAY = 5000;
+static const int SYNC_ESTIMATE_WINDOW_MS = 3 * 60 * 1000;
+
 /* AskPassphraseDialog -- Maximum passphrase length */
 static const int MAX_PASSPHRASE_SIZE = 1024;
 

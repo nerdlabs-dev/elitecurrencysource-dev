@@ -4,6 +4,9 @@
 #include <QMainWindow>
 #include <QSystemTrayIcon>
 
+#include <deque>
+#include <utility>
+
 class TransactionTableModel;
 class ClientModel;
 class WalletModel;
@@ -27,6 +30,7 @@ class QModelIndex;
 class QProgressBar;
 class QToolBar;
 class QStackedWidget;
+class QTimer;
 class QUrl;
 QT_END_NAMESPACE
 
@@ -122,6 +126,14 @@ private:
 
     QMovie *syncIconMovie;
 
+    /** Time-left estimate while syncing: (ms timestamp, height) samples from
+        the last few minutes, the tallest peer's height and the texts shown */
+    QTimer *syncEstimateTimer;
+    std::deque<std::pair<qint64, int> > syncSamples;
+    int syncTargetHeight;
+    QString syncEstimateText;
+    QString syncRateText;
+
     /** Create the main UI actions. */
     void createActions();
     /** Create the menu bar and sub-menus. */
@@ -159,6 +171,8 @@ public slots:
     void handleURI(QString strURI);
 
 private slots:
+    /** Recompute the sync time-left estimate (every few seconds, cheap) */
+    void updateSyncEstimate();
     /** Switch to overview (home) page */
     void gotoOverviewPage();
     /** Switch to history (transactions) page */

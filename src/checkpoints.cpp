@@ -274,6 +274,14 @@ namespace Checkpoints
 
         if (nHeight > pindexSync->nHeight)
         {
+            // Fast path: when both the sync-checkpoint and the new block's parent
+            // are on our main chain, the parent descends from the checkpoint (the
+            // main chain is a single line). Without this, every new block walked
+            // back to the checkpoint one block at a time, which gets slower the
+            // further the chain grows past the checkpoint.
+            if (pindexSync->IsInMainChain() && pindexPrev->IsInMainChain())
+                return true;
+
             // trace back to same height as sync-checkpoint
             const CBlockIndex* pindex = pindexPrev;
             while (pindex->nHeight > pindexSync->nHeight)

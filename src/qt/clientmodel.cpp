@@ -44,7 +44,8 @@ int ClientModel::getNumConnections() const
 
 int ClientModel::getNumBlocks() const
 {
-    return nBestHeight;
+    // the copy the core keeps for the GUI: no waiting on, or racing with, block processing
+    return nBestHeightUI;
 }
 
 int ClientModel::getNumBlocksAtStartup()
@@ -55,8 +56,9 @@ int ClientModel::getNumBlocksAtStartup()
 
 QDateTime ClientModel::getLastBlockDate() const
 {
-    if (pindexBest)
-        return QDateTime::fromTime_t(pindexBest->GetBlockTime());
+    int64_t nTime = nBestTimeUI;
+    if (nTime > 0)
+        return QDateTime::fromTime_t(nTime);
     else
         return QDateTime::fromTime_t(1393221600); // Genesis block's time
 }

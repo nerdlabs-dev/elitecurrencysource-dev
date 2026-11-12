@@ -665,6 +665,7 @@ void CNode::copyStats(CNodeStats &stats)
     X(strSubVer);
     X(fInbound);
     X(nStartingHeight);
+    X(nKnownHeight);
     X(nMisbehavior);
     X(nSendBytes);
     X(nRecvBytes);
@@ -1750,15 +1751,14 @@ static int PeerClientVersion(const CNode* pnode)
     return nMajor * 10000 + nMinor * 100 + nRevision;
 }
 
-// Peers running 3.0.1 or newer announce 500 blocks per getblocks request
-// instead of 50, so prefer them; then the one furthest ahead; then the one we
-// heard from most recently
+// Among peers that are tall enough (see StartSync): peers running 3.0.1 or
+// newer win, as they announce 500 blocks per getblocks request instead of 50;
+// then the one we heard from most recently
 static int64_t NodeSyncScore(const CNode* pnode)
 {
     int64_t nScore = pnode->nLastRecv;
-    nScore += (int64_t)std::max(0, pnode->nStartingHeight) << 32;
     if (PeerClientVersion(pnode) >= 30001)
-        nScore += (int64_t)1 << 62;   // outranks height and recency
+        nScore += (int64_t)1 << 62;
     return nScore;
 }
 
@@ -1775,46 +1775,89 @@ void ReleaseSyncNode(CNode* pnode, int64_t nSeconds)
         pnodeSync = NULL;   // ThreadMessageHandler picks a new one
 }
 
+int GetBestPeerHeight()
+{
+    int nBest = -1;
+    LOCK(cs_vNodes);
+    BOOST_FOREACH(CNode* pnode, vNodes)
+        if (pnode->fSuccessfullyConnected && !pnode->fDisconnect)
+            nBest = std::max(nBest, pnode->nKnownHeight);
+    return nBest;
+}
+
 // Pick the peer to download the block chain from. Called with cs_vNodes held.
+//
+// Height comes first: only peers within SYNC_HEIGHT_SLACK blocks of the
+// tallest one are candidates, so a new node doesn't latch onto another node
+// that is itself still syncing. Among those, newer wallets win, then the peer
+// we heard from most recently. Peers we recently gave up on (ReleaseSyncNode)
+// are only used if there's no one else.
 static void StartSync(const vector<CNode*>& vNodesIn)
 {
-    CNode* pnodeNewSync = NULL;
-    int64_t nBestScore = 0;
-    // Peers we recently gave up on (see ReleaseSyncNode) are only used if
-    // there's no one else
-    CNode* pnodeFallback = NULL;
-    int64_t nFallbackScore = 0;
     int64_t nNow = GetTime();
-
-    BOOST_FOREACH(CNode* pnode, vNodesIn)
+    for (int nPass = 0; nPass < 2; nPass++)
     {
-        if (pnode->fDisconnect || !CanSyncFrom(pnode))
-            continue;
-        int64_t nScore = NodeSyncScore(pnode);
-        if (pnode->nSyncAvoidUntil > nNow)
+        bool fUseAvoided = (nPass == 1);
+
+        int nMaxHeight = -1;
+        BOOST_FOREACH(CNode* pnode, vNodesIn)
         {
-            if (pnodeFallback == NULL || nScore > nFallbackScore)
-            {
-                pnodeFallback = pnode;
-                nFallbackScore = nScore;
-            }
-            continue;
+            if (pnode->fDisconnect || !CanSyncFrom(pnode) || (pnode->nSyncAvoidUntil > nNow) != fUseAvoided)
+                continue;
+            nMaxHeight = std::max(nMaxHeight, pnode->nKnownHeight);
         }
-        if (pnodeNewSync == NULL || nScore > nBestScore)
+        if (nMaxHeight < 0)
+            continue;
+
+        CNode* pnodeNewSync = NULL;
+        int64_t nBestScore = 0;
+        BOOST_FOREACH(CNode* pnode, vNodesIn)
         {
-            pnodeNewSync = pnode;
-            nBestScore = nScore;
+            if (pnode->fDisconnect || !CanSyncFrom(pnode) || (pnode->nSyncAvoidUntil > nNow) != fUseAvoided)
+                continue;
+            if (pnode->nKnownHeight < nMaxHeight - SYNC_HEIGHT_SLACK)
+                continue;
+            int64_t nScore = NodeSyncScore(pnode);
+            if (pnodeNewSync == NULL || nScore > nBestScore)
+            {
+                pnodeNewSync = pnode;
+                nBestScore = nScore;
+            }
+        }
+        if (pnodeNewSync)
+        {
+            printf("sync: downloading blocks from %s (%s, height %d; tallest peer %d, us %d)\n",
+                   pnodeNewSync->addrName.c_str(), pnodeNewSync->strSubVer.c_str(),
+                   pnodeNewSync->nKnownHeight, nMaxHeight, nBestHeight);
+            pnodeNewSync->fStartSync = true;
+            pnodeSync = pnodeNewSync;
+            return;
         }
     }
-    if (pnodeNewSync == NULL)
-        pnodeNewSync = pnodeFallback;
+}
 
-    if (pnodeNewSync)
+// The sync peer has sent every block it is known to have. If another peer is
+// clearly further ahead, move to it now rather than waiting for the stall
+// watchdog, which takes two or three minutes to give up. Called with
+// cs_vNodes held.
+static void SwitchIfSyncNodeExhausted(const vector<CNode*>& vNodesIn)
+{
+    if (pnodeSync == NULL || pnodeSync->nKnownHeight > nBestHeight)
+        return;
+    int64_t nNow = GetTime();
+    BOOST_FOREACH(CNode* pnode, vNodesIn)
     {
-        printf("sync: downloading blocks from %s (%s, height %d)\n", pnodeNewSync->addrName.c_str(),
-               pnodeNewSync->strSubVer.c_str(), pnodeNewSync->nStartingHeight);
-        pnodeNewSync->fStartSync = true;
-        pnodeSync = pnodeNewSync;
+        if (pnode == pnodeSync || pnode->fDisconnect || !CanSyncFrom(pnode) || pnode->nSyncAvoidUntil > nNow)
+            continue;
+        if (pnode->nKnownHeight >= nBestHeight + SYNC_SWITCH_MARGIN)
+        {
+            printf("sync: %s has no more blocks for us (height %d), %s is at %d, switching\n",
+                   pnodeSync->addrName.c_str(), nBestHeight, pnode->addrName.c_str(), pnode->nKnownHeight);
+            pnodeSync->nSyncAvoidUntil = nNow + 10 * 60;
+            pnodeSync = NULL;
+            StartSync(vNodesIn);
+            return;
+        }
     }
 }
 
@@ -1831,9 +1874,12 @@ void ThreadMessageHandler2(void* parg)
             BOOST_FOREACH(CNode* pnode, vNodesCopy)
                 pnode->AddRef();
 
-            // Pick a peer to download the chain from if we don't have one
+            // Pick a peer to download the chain from if we don't have one, or
+            // move on from one that has nothing more for us
             if (pnodeSync == NULL)
                 StartSync(vNodesCopy);
+            else
+                SwitchIfSyncNodeExhausted(vNodesCopy);
         }
 
         // Poll the connected nodes for messages

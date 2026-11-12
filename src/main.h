@@ -13,6 +13,7 @@
 #include "zerocoin/Zerocoin.h"
 #include "hashblock.h"
 #include <list>
+#include <atomic>
 
 class CWallet;
 class CBlock;
@@ -42,6 +43,10 @@ static const int DEFAULT_BLOCK_BATCH_SIZE = 500;
 static const int64_t SYNC_STALL_TIMEOUT = 60;
 /** Stall watchdog firings in a row (at the same height) before switching to another sync peer */
 static const int SYNC_STALLS_BEFORE_SWITCH = 2;
+/** Peers within this many blocks of the tallest peer all count as tall enough to sync from */
+static const int SYNC_HEIGHT_SLACK = 1000;
+/** Move off a sync peer that has run out of blocks when another peer is at least this far ahead */
+static const int SYNC_SWITCH_MARGIN = 100;
 static const unsigned int MAX_INV_SZ = 50000;
 static const int64_t MIN_TX_FEE = 10000;
 static const int64_t MIN_RELAY_TX_FEE = MIN_TX_FEE;
@@ -95,6 +100,11 @@ extern unsigned int nStakeMaxAge;
 extern unsigned int nNodeLifespan;
 extern int nCoinbaseMaturity;
 extern int nBestHeight;
+// Copies of the tip's height and time that the GUI can read at any moment
+// without waiting for cs_main (block processing holds it almost all the time
+// while syncing)
+extern std::atomic<int> nBestHeightUI;
+extern std::atomic<int64_t> nBestTimeUI;
 extern uint256 nBestChainTrust;
 extern uint256 nBestInvalidTrust;
 extern uint256 hashBestChain;
@@ -890,6 +900,12 @@ public:
     // memory only
     mutable std::vector<uint256> vMerkleTree;
 
+    // memory only: the last X11 header hash and the 80 header bytes it was
+    // computed from (see GetPoWHash)
+    mutable unsigned char vchHashCacheHeader[80];
+    mutable uint256 hashCache;
+    mutable bool fHashCached;
+
     // Denial-of-service detection:
     mutable int nDoS;
     bool DoS(int nDoSIn, bool fIn) const { nDoS += nDoSIn; return fIn; }
@@ -933,6 +949,7 @@ public:
         vtx.clear();
         vchBlockSig.clear();
         vMerkleTree.clear();
+        fHashCached = false;
         nDoS = 0;
     }
 
@@ -948,7 +965,19 @@ public:
 
     uint256 GetPoWHash() const
     {
-        return Hash9(BEGIN(nVersion), END(nNonce));
+        // A block's hash is asked for many times while it is checked, stored
+        // and connected, and X11 runs eleven hash functions each time. Keep the
+        // last result with a copy of the 80 header bytes (nVersion..nNonce) it
+        // came from; any change to the header (a new nonce while mining, say)
+        // no longer matches and the hash is computed again.
+        const unsigned char* pheader = (const unsigned char*)BEGIN(nVersion);
+        if (fHashCached && memcmp(vchHashCacheHeader, pheader, sizeof(vchHashCacheHeader)) == 0)
+            return hashCache;
+        uint256 hash = Hash9(BEGIN(nVersion), END(nNonce));
+        memcpy(vchHashCacheHeader, pheader, sizeof(vchHashCacheHeader));
+        hashCache = hash;
+        fHashCached = true;
+        return hash;
     }
 
     int64_t GetBlockTime() const

@@ -46,6 +46,8 @@ void MapPort();
 bool IsSyncNode(const CNode* pnode);
 /** Stop downloading from this peer and pick another (it's skipped for nSeconds) */
 void ReleaseSyncNode(CNode* pnode, int64_t nSeconds);
+/** Highest block height any connected peer is known to have (-1 if none) */
+int GetBestPeerHeight();
 unsigned short GetListenPort();
 bool BindListenPort(const CService &bindAddr, std::string& strError=REF(std::string()));
 void StartNode(void* parg);
@@ -168,6 +170,7 @@ public:
     std::string strSubVer;
     bool fInbound;
     int nStartingHeight;
+    int nKnownHeight;
     int nMisbehavior;
     uint64_t nSendBytes;
     uint64_t nRecvBytes;
@@ -242,6 +245,8 @@ public:
     int64_t nSyncAvoidUntil;    // don't pick this peer to sync from before this time
     bool fStartSync;            // chosen as sync peer; send it getblocks next time round
     int nStartingHeight;
+    int nKnownHeight;           // highest block this peer is known to have: the height in
+                                // its version message, raised by blocks it sends or announces
 
     // getdata requests still to be answered. Served as the send buffer drains
     // instead of all at once, so one request for thousands of blocks can't
@@ -299,6 +304,7 @@ public:
         nSyncAvoidUntil = 0;
         fStartSync = false;
         nStartingHeight = -1;
+        nKnownHeight = -1;
         fGetAddr = false;
         nMisbehavior = 0;
         hashCheckpointKnown = 0;
