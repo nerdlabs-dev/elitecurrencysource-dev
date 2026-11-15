@@ -12,6 +12,7 @@ class ClientModel;
 class WalletModel;
 class TransactionView;
 class OverviewPage;
+class StakeReportDialog;
 class AddressBookPage;
 class SendCoinsDialog;
 class SignVerifyMessageDialog;
@@ -71,6 +72,7 @@ private:
     QStackedWidget *centralWidget;
 
     OverviewPage *overviewPage;
+    StakeReportDialog *stakeReportDialog;
     QWidget *transactionsPage;
     AddressBookPage *addressBookPage;
     AddressBookPage *receiveCoinsPage;

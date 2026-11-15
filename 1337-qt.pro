@@ -124,7 +124,8 @@ SOURCES += src/txdb-leveldb.cpp \
     src/skein.c \
     src/fugue.c \
     src/hamsi.c \
-    src/qt/stakereportdialoge.cpp
+    src/stakereport.cpp \
+    src/qt/stakereportdialog.cpp
 !win32 {
     # we use QMAKE_CXXFLAGS_RELEASE even without RELEASE=1 because we use RELEASE to indicate linking preferences not -O preferences
     # (CC/CXX quoted so wrappers like "ccache g++" work)
@@ -280,9 +281,9 @@ HEADERS += src/qt/bitcoingui.h \
     src/sph_hamsi.h \
     src/sph_types.h \
     src/clientversion.h \
-    src/qt/locale/stakereport.dialocpp \
     src/qt/resources.h \
-    src/qt/stakereportdialoge.h
+    src/stakereport.h \
+    src/qt/stakereportdialog.h
 
 SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/qt/transactiontablemodel.cpp \

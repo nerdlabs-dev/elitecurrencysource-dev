@@ -136,6 +136,7 @@ OBJS= \
     obj/noui.o \
     obj/pbkdf2.o \
     obj/kernel.o \
+    obj/stakereport.o \
     obj/scrypt.o \
     obj/zerocoin/Accumulator.o \
     obj/zerocoin/AccumulatorProofOfKnowledge.o \

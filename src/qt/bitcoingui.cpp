@@ -28,7 +28,7 @@
 #include "rpcconsole.h"
 #include "wallet.h"
 #include "resources.h"
-#include "stakereportdialoge.h"
+#include "stakereportdialog.h"
 #include "main.h"
 #include "net.h"
 
@@ -118,6 +118,7 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
 
     // Create tabs
     overviewPage = new OverviewPage();
+    stakeReportDialog = new StakeReportDialog(this);
 
     transactionsPage = new QWidget(this);
     QVBoxLayout *vbox = new QVBoxLayout();
@@ -338,8 +339,8 @@ void BitcoinGUI::createActions()
     lockWalletAction->setToolTip(tr("Lock wallet"));
     signMessageAction = new QAction(QIcon(":/icons/edit"), tr("Sign &message..."), this);
     verifyMessageAction = new QAction(QIcon(":/icons/transaction_0"), tr("&Verify message..."), this);
-    stakeReportAction = new QAction(QIcon(":/icons/lock_closed"), tr("Show stake report"), this);
-    stakeReportAction->setToolTip(tr("Open the Stake Report Box"));
+    stakeReportAction = new QAction(QIcon(":/icons/bitcoin"), tr("&Stake Report..."), this);
+    stakeReportAction->setToolTip(tr("What this wallet has earned from staking, per day and per period"));
     openRPCConsoleAction = new QAction(QIcon(""), tr("&DEBUG"), this);
     openRPCConsoleAction->setToolTip(tr("Open debugging and diagnostic console"));
     exportAction = new QAction(QIcon(""), tr("&EXPORT..."), this);
@@ -358,6 +359,7 @@ void BitcoinGUI::createActions()
     connect(lockWalletAction, SIGNAL(triggered()), this, SLOT(lockWallet()));
     connect(signMessageAction, SIGNAL(triggered()), this, SLOT(gotoSignMessageTab()));
     connect(verifyMessageAction, SIGNAL(triggered()), this, SLOT(gotoVerifyMessageTab()));
+    connect(stakeReportAction, SIGNAL(triggered()), this, SLOT(showNormalIfMinimized()));
     connect(stakeReportAction, SIGNAL(triggered()), this, SLOT(stakeReportClicked()));
 
 }
@@ -391,14 +393,14 @@ void BitcoinGUI::createMenuBar()
     settings->addSeparator();
     settings->addAction(optionsAction);
 
+    QMenu *staking = appMenuBar->addMenu(tr("S&taking"));
+    staking->addAction(stakeReportAction);
+
     QMenu *help = appMenuBar->addMenu(tr("&Help"));
     help->addAction(openRPCConsoleAction);
     help->addSeparator();
     help->addAction(aboutAction);
     help->addAction(aboutQtAction);
-
-    QMenu *information = appMenuBar->addMenu(tr("Stake Report"));
-    information->addAction(stakeReportAction);
 }
 
 void BitcoinGUI::createToolBars()
@@ -552,6 +554,7 @@ void BitcoinGUI::setWalletModel(WalletModel *walletModel)
         sendCoinsPage->setModel(walletModel);
         signVerifyMessageDialog->setModel(walletModel);
         multiSendDialog->setModel(walletModel);
+        stakeReportDialog->setModel(walletModel);
 
         setEncryptionStatus(walletModel->getEncryptionStatus());
         connect(walletModel, SIGNAL(encryptionStatusChanged(int)), this, SLOT(setEncryptionStatus(int)));
@@ -895,9 +898,10 @@ void BitcoinGUI::updateStakingIcon()
 
 void BitcoinGUI::stakeReportClicked()
 {
-    static StakeReportDialog dlg;
-    dlg.setModel(walletModel);
-    dlg.show();
+    // One window, kept for the session; it refreshes itself while open
+    stakeReportDialog->show();
+    stakeReportDialog->raise();
+    stakeReportDialog->activateWindow();
 }
 
 void BitcoinGUI::error(const QString &title, const QString &message, bool modal)
