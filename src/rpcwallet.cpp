@@ -97,7 +97,10 @@ Value getinfo(const Array& params, bool fHelp)
     obj.push_back(Pair("timeoffset",    (boost::int64_t)GetTimeOffset()));
     obj.push_back(Pair("connections",   (int)vNodes.size()));
     obj.push_back(Pair("proxy",         (proxy.first.IsValid() ? proxy.first.ToStringIPPort() : string())));
-    obj.push_back(Pair("ip",            addrSeenByPeer.ToStringIP()));
+    // Our public address as we advertise it (from -externalip, UPnP, or what
+    // peers agree they see us at); before that's known, what the last peer said
+    CAddress addrPublic = GetLocalAddress(NULL);
+    obj.push_back(Pair("ip",            addrPublic.IsRoutable() ? addrPublic.ToStringIP() : addrSeenByPeer.ToStringIP()));
 
     diff.push_back(Pair("proof-of-work",  GetDifficulty()));
     diff.push_back(Pair("proof-of-stake", GetDifficulty(GetLastBlockIndex(pindexBest, true))));

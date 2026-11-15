@@ -263,6 +263,7 @@ HEADERS += src/qt/bitcoingui.h \
     src/allocators.h \
     src/ui_interface.h \
     src/qt/rpcconsole.h \
+    src/qt/trafficgraphwidget.h \
     src/version.h \
     src/netbase.h \
     src/bloom.h \
@@ -347,6 +348,7 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/qt/notificator.cpp \
     src/qt/qtipcserver.cpp \
     src/qt/rpcconsole.cpp \
+    src/qt/trafficgraphwidget.cpp \
     src/qt/multisenddialog.cpp \
     src/noui.cpp \
     src/kernel.cpp \

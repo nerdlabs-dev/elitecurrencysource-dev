@@ -47,6 +47,13 @@ static const int SYNC_STALLS_BEFORE_SWITCH = 2;
 static const int SYNC_HEIGHT_SLACK = 1000;
 /** Move off a sync peer that has run out of blocks when another peer is at least this far ahead */
 static const int SYNC_SWITCH_MARGIN = 100;
+/** Oldest wallet we prefer to download blocks from, as major*10000 +
+ *  minor*100 + revision: 3.0.1 sends 500-block batches, older ones 50. Older
+ *  peers are still used when no peer this new is available. */
+static const int MIN_SYNC_PEER_VERSION = 30001;
+/** While we are this many blocks behind the height our peers agree on, we
+ *  don't hand out blocks (getblocks/getheaders), so our own download goes faster */
+static const int CATCHING_UP_BLOCKS = 144;
 static const unsigned int MAX_INV_SZ = 50000;
 static const int64_t MIN_TX_FEE = 10000;
 static const int64_t MIN_RELAY_TX_FEE = MIN_TX_FEE;

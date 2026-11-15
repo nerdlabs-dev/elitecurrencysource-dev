@@ -36,7 +36,11 @@ inline unsigned int SendBufferSize() { return 1000*GetArg("-maxsendbuffer", 1*10
 
 void AddOneShot(std::string strDest);
 bool RecvLine(SOCKET hSocket, std::string& strLine);
-bool GetMyExternalIP(CNetAddr& ipRet);
+/** An outbound peer told us the address it sees us at; once peers in two
+ *  network groups agree, it becomes our public address */
+bool LearnLocalFromPeer(CNode* pnode, const CAddress& addrMe);
+/** True once after our public address was learned or changed */
+bool TakeLocalAddressChanged();
 void AddressCurrentlyConnected(const CService& addr);
 CNode* FindNode(const CNetAddr& ip);
 CNode* FindNode(const CService& ip);
@@ -48,6 +52,11 @@ bool IsSyncNode(const CNode* pnode);
 void ReleaseSyncNode(CNode* pnode, int64_t nSeconds);
 /** Highest block height any connected peer is known to have (-1 if none) */
 int GetBestPeerHeight();
+/** The height at least two peers agree on (a lone much taller peer doesn't count); -1 if no peers */
+int GetAgreedPeerHeight();
+/** True while we are well behind the height our peers agree on (set by the
+ *  message handler thread). We don't hand out blocks then. */
+extern bool fCatchingUp;
 unsigned short GetListenPort();
 bool BindListenPort(const CService &bindAddr, std::string& strError=REF(std::string()));
 void StartNode(void* parg);
@@ -59,7 +68,7 @@ enum
     LOCAL_IF,     // address a local interface listens on
     LOCAL_BIND,   // address explicit bound to
     LOCAL_UPNP,   // address reported by UPnP
-    LOCAL_HTTP,   // address reported by whatismyip.com and similar
+    LOCAL_PEER,   // address that several outbound peers agree they see us at
     LOCAL_MANUAL, // address explicitly specified (-externalip=)
 
     LOCAL_MAX

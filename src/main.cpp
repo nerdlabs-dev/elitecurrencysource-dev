@@ -2306,6 +2306,12 @@ bool CBlock::AcceptBlock()
     if (!Checkpoints::CheckHardened(nHeight, hash))
         return DoS(100, error("AcceptBlock() : rejected by hardened checkpoint lock-in at %d", nHeight));
 
+    // Don't accept a fork from the main chain below the last checkpoint we
+    // already have (as in Bitcoin): a peer sending one is on another chain
+    CBlockIndex* pcheckpoint = Checkpoints::GetLastCheckpoint(mapBlockIndex);
+    if (pcheckpoint && nHeight < pcheckpoint->nHeight)
+        return DoS(100, error("AcceptBlock() : forked chain older than last checkpoint (height %d, checkpoint %d)", nHeight, pcheckpoint->nHeight));
+
     uint256 hashProof;
     // Verify hash target and signature of coinstake tx
     if (IsProofOfStake())
@@ -3202,6 +3208,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             pfrom->addrLocal = addrMe;
             SeenLocal(addrMe);
         }
+        // Outbound peers tell us our public address; learn it once enough agree
+        LearnLocalFromPeer(pfrom, addrMe);
 
         // Disconnect if we connected to ourself
         if (nNonce == nLocalHostNonce && nNonce > 1)
@@ -3456,6 +3464,14 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         uint256 hashStop;
         vRecv >> locator >> hashStop;
 
+        // While we're still catching up ourselves, leave serving the chain to
+        // synced peers: answering means reading and sending a batch of up to
+        // 500 blocks, which slows our own download (on FlapX: 2+ days with 12
+        // connections, 9-10 hours without serving). The peer stays connected
+        // and its stall watchdog moves it to another peer.
+        if (fCatchingUp)
+            return true;
+
         // Find the last block the caller has in the main chain
         CBlockIndex* pindex = locator.GetBlockIndex();
 
@@ -3508,6 +3524,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         CBlockLocator locator;
         uint256 hashStop;
         vRecv >> locator >> hashStop;
+
+        if (fCatchingUp)    // as getblocks
+            return true;
 
         CBlockIndex* pindex = NULL;
         if (locator.IsNull())
@@ -4074,8 +4093,12 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
 
         // Address refresh broadcast
         static int64_t nLastRebroadcast;
-        if (!IsInitialBlockDownload() && (GetTime() - nLastRebroadcast > 24 * 60 * 60))
+        static bool fRebroadcastLocal = false;
+        if (TakeLocalAddressChanged())
+            fRebroadcastLocal = true;  // just learned our public address: tell everyone now
+        if (!IsInitialBlockDownload() && (GetTime() - nLastRebroadcast > 24 * 60 * 60 || fRebroadcastLocal))
         {
+            fRebroadcastLocal = false;
             {
                 LOCK(cs_vNodes);
                 BOOST_FOREACH(CNode* pnode, vNodes)

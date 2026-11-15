@@ -528,6 +528,9 @@ bool CAddrDB::Write(const CAddrMan& addr)
         fileout << ssPeers;
     }
     catch (std::exception &e) {
+        fileout.fclose();
+        boost::system::error_code ec;
+        boost::filesystem::remove(pathTmp, ec);   // don't leave the temp file behind
         return error("CAddrman::Write() : I/O error");
     }
     FileCommit(fileout);
@@ -535,9 +538,36 @@ bool CAddrDB::Write(const CAddrMan& addr)
 
     // replace existing peers.dat, if any, with new peers.dat.XXXX
     if (!RenameOver(pathTmp, pathAddr))
+    {
+        boost::system::error_code ec;
+        boost::filesystem::remove(pathTmp, ec);
         return error("CAddrman::Write() : Rename-into-place failed");
+    }
 
     return true;
+}
+
+void CAddrDB::RemoveLeftoverTempFiles()
+{
+    // peers.dat is saved through a temporary peers.dat.XXXX file that is
+    // renamed into place; a crash, forced kill or power cut during a save
+    // leaves it behind. Only names Write() creates: "peers.dat." and 4 hex digits.
+    try {
+        boost::filesystem::directory_iterator end;
+        for (boost::filesystem::directory_iterator it(GetDataDir()); it != end; ++it)
+        {
+            const std::string name = it->path().filename().string();
+            if (name.size() != 14 || name.compare(0, 10, "peers.dat.") != 0)
+                continue;
+            if (name.find_first_not_of("0123456789abcdef", 10) != std::string::npos)
+                continue;
+            boost::system::error_code ec;
+            if (boost::filesystem::is_regular_file(it->path(), ec) && boost::filesystem::remove(it->path(), ec))
+                printf("Removed leftover %s\n", name.c_str());
+        }
+    } catch (const boost::filesystem::filesystem_error& e) {
+        printf("RemoveLeftoverTempFiles: %s\n", e.what());
+    }
 }
 
 bool CAddrDB::Read(CAddrMan& addr)

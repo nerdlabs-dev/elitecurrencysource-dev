@@ -3,12 +3,20 @@
 
 #include <QDialog>
 
+#include <vector>
+
 namespace Ui {
     class RPCConsole;
 }
 class ClientModel;
 
 /** Local Bitcoin RPC console. */
+class CNodeStats;
+class TrafficGraphWidget;
+class QLabel;
+class QTableWidget;
+class QTextBrowser;
+
 class RPCConsole: public QDialog
 {
     Q_OBJECT
@@ -37,6 +45,11 @@ private slots:
     void on_openDebugLogfileButton_clicked();
     /** display messagebox with program parameters (same as bitcoin-qt --help) */
     void on_showCLOptionsButton_clicked();
+    /** Peers tab: reload the peer list (only while the tab is shown) */
+    void refreshPeers();
+    void showPeerDetails();
+    /** Network Traffic tab: read the byte totals for the graph */
+    void sampleTraffic();
 
 public slots:
     void clear();
@@ -61,6 +74,22 @@ private:
     int historyPtr;
 
     void startExecutor();
+
+    // Peers tab
+    QWidget *peersTab;
+    QLabel *peerSummary;
+    QTableWidget *peerTable;
+    QTextBrowser *peerDetails;
+    std::vector<CNodeStats> *peerStats;
+    QString selectedPeer;
+    void setupPeersTab();
+
+    // Network Traffic tab
+    QWidget *trafficTab;
+    TrafficGraphWidget *trafficGraph;
+    QLabel *trafficRecvLabel;
+    QLabel *trafficSentLabel;
+    void setupTrafficTab();
 };
 
 #endif // RPCCONSOLE_H

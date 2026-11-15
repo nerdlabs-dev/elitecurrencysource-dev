@@ -45,6 +45,17 @@ Wallet look - the recent transactions list shows as many as fit; Discord and X l
 Wallet look - new theme file 1337-4.qss (an old 1337-3.qss in the data directory is no longer used)
 Removed - unused images and icons
 Fix - the wallet crashed on its first start (the wallet file name was empty in the settings migration)
+Faster sync - blocks are processed as soon as they arrive (the message thread no longer sleeps 100 ms between batches)
+Faster sync - the sync peer target is a height at least two peers agree on, so one peer claiming a fake height can't pull the wallet off course
+Faster sync - a peer older than 3.0.1 is replaced as sync peer when a newer one is equally tall
+Faster sync - while far behind, the wallet stops serving blocks to others so it can catch up first
+Fix - forks below the last checkpoint are rejected straight away
+Changed - public IP is learned from what peers report (two peers in different networks must agree) instead of an old web lookup at a fixed address
+Changed - UPnP looks a little further for the router
+Fix - leftover peers.dat.XXXX temp files are cleaned up at startup and after a failed save
+Added - Debug window: Peers tab (address, direction, version, height, ping, traffic; click a peer for details)
+Added - Debug window: Network Traffic tab with a 10 minute graph and totals
+Removed - old NovaCoin/Bitcoin packaging and art (Debian, Gitian, NSIS installer, bitmaps, Doxygen logo); Windows icon renamed elite.ico
 
 
 v1.7.0.0

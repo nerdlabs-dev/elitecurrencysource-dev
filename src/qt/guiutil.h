@@ -33,6 +33,13 @@ namespace GUIUtil
 
     // Create human-readable string from date
     QString dateTimeStr(const QDateTime &datetime);
+
+    /** "512 B", "3.4 kB", "1.25 MB", "2.1 GB" */
+    QString formatBytes(quint64 bytes);
+    /** Same, per second: "3.4 kB/s" */
+    QString formatBytesPerSecond(double bytes);
+    /** A duration as "45 s", "12 m 5 s", "3 h 4 m" or "2 d 5 h" */
+    QString formatDurationStr(qint64 secs);
     QString dateTimeStr(qint64 nTime);
 
     // Render Bitcoin addresses in monospace font

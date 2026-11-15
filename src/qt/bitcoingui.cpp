@@ -801,7 +801,7 @@ void BitcoinGUI::updateSyncEstimate()
 {
     int nHeight = nBestHeightUI;
     qint64 nNowMs = GetTimeMillis();
-    int nPeerHeight = GetBestPeerHeight();
+    int nPeerHeight = GetAgreedPeerHeight();   // a lone peer on a taller fork doesn't count
 
     // Only while catching up: a peer is ahead of us and our newest block is
     // more than 90 minutes old (as for the sync icon)

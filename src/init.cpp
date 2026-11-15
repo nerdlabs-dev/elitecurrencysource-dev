@@ -877,6 +877,7 @@ bool AppInit2()
 
     uiInterface.InitMessage(_("Loading addresses..."));
     printf("Loading addresses...\n");
+    CAddrDB::RemoveLeftoverTempFiles();
     nStart = GetTimeMillis();
 
     {
