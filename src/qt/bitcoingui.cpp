@@ -29,6 +29,7 @@
 #include "wallet.h"
 #include "resources.h"
 #include "stakereportdialog.h"
+#include "calcdialog.h"
 #include "main.h"
 #include "net.h"
 
@@ -341,6 +342,8 @@ void BitcoinGUI::createActions()
     verifyMessageAction = new QAction(QIcon(":/icons/transaction_0"), tr("&Verify message..."), this);
     stakeReportAction = new QAction(QIcon(":/icons/bitcoin"), tr("&Stake Report..."), this);
     stakeReportAction->setToolTip(tr("What this wallet has earned from staking, per day and per period"));
+    calcAction = new QAction(QIcon(":/icons/bitcoin"), tr("&Interest Estimate..."), this);
+    calcAction->setToolTip(tr("Estimate the staking interest on an amount of 1337"));
     openRPCConsoleAction = new QAction(QIcon(""), tr("&DEBUG"), this);
     openRPCConsoleAction->setToolTip(tr("Open debugging and diagnostic console"));
     exportAction = new QAction(QIcon(""), tr("&EXPORT..."), this);
@@ -361,6 +364,8 @@ void BitcoinGUI::createActions()
     connect(verifyMessageAction, SIGNAL(triggered()), this, SLOT(gotoVerifyMessageTab()));
     connect(stakeReportAction, SIGNAL(triggered()), this, SLOT(showNormalIfMinimized()));
     connect(stakeReportAction, SIGNAL(triggered()), this, SLOT(stakeReportClicked()));
+    connect(calcAction, SIGNAL(triggered()), this, SLOT(showNormalIfMinimized()));
+    connect(calcAction, SIGNAL(triggered()), this, SLOT(calcClicked()));
 
 }
 
@@ -393,8 +398,10 @@ void BitcoinGUI::createMenuBar()
     settings->addSeparator();
     settings->addAction(optionsAction);
 
-    QMenu *staking = appMenuBar->addMenu(tr("S&taking"));
-    staking->addAction(stakeReportAction);
+    // Staking returns: what the wallet has earned, and what an amount would earn
+    QMenu *apr = appMenuBar->addMenu(tr("&APR Tracking"));
+    apr->addAction(stakeReportAction);
+    apr->addAction(calcAction);
 
     QMenu *help = appMenuBar->addMenu(tr("&Help"));
     help->addAction(openRPCConsoleAction);
@@ -894,6 +901,12 @@ void BitcoinGUI::updateStakingIcon()
         else
             labelStakingIcon->setToolTip(tr("Not staking"));
     }
+}
+
+void BitcoinGUI::calcClicked()
+{
+    calcDialog dlg(this);
+    dlg.exec();
 }
 
 void BitcoinGUI::stakeReportClicked()

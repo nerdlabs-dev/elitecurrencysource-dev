@@ -117,6 +117,7 @@ private:
     QAction *openRPCConsoleAction;
     QAction * multiSendAction;
     QAction *stakeReportAction;
+    QAction *calcAction;
     QAction *resourcesAction;
 
 
@@ -218,6 +219,8 @@ private slots:
 
     void lockWallet();
     void stakeReportClicked();
+    /** Show the APR Tracking > Interest Estimate window */
+    void calcClicked();
 
 
     /** Show window if hidden, unminimize when minimized, rise when obscured or show if hidden and fToggleHidden is true */

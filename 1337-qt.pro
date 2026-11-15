@@ -125,7 +125,8 @@ SOURCES += src/txdb-leveldb.cpp \
     src/fugue.c \
     src/hamsi.c \
     src/stakereport.cpp \
-    src/qt/stakereportdialog.cpp
+    src/qt/stakereportdialog.cpp \
+    src/qt/calcdialog.cpp
 !win32 {
     # we use QMAKE_CXXFLAGS_RELEASE even without RELEASE=1 because we use RELEASE to indicate linking preferences not -O preferences
     # (CC/CXX quoted so wrappers like "ccache g++" work)
@@ -283,7 +284,8 @@ HEADERS += src/qt/bitcoingui.h \
     src/clientversion.h \
     src/qt/resources.h \
     src/stakereport.h \
-    src/qt/stakereportdialog.h
+    src/qt/stakereportdialog.h \
+    src/qt/calcdialog.h
 
 SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/qt/transactiontablemodel.cpp \
@@ -383,7 +385,8 @@ FORMS += \
     src/qt/forms/rpcconsole.ui \
     src/qt/forms/optionsdialog.ui \
     src/qt/forms/resources.ui \
-    src/qt/forms/stakereportdialog.ui
+    src/qt/forms/stakereportdialog.ui \
+    src/qt/forms/calcdialog.ui
 
 contains(USE_QRCODE, 1) {
 HEADERS += src/qt/qrcodedialog.h
