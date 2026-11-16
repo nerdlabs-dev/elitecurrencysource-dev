@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <limits>
 
 #include <boost/thread/condition_variable.hpp>
 #include <boost/thread/mutex.hpp>
@@ -1751,27 +1752,77 @@ static int64_t NodeSyncScore(const CNode* pnode)
 
 bool fCatchingUp = false;
 
-// The chain height our peers agree on: the tallest height that at least two
-// usable peers report (within SYNC_HEIGHT_SLACK of each other). A lone peer far
-// above everyone else is usually on its own fork, so its claim doesn't count.
-// With one usable peer, that peer's height. Called with cs_vNodes held.
-static int AgreedPeerHeight(const vector<CNode*>& vNodesIn, bool fUseAvoided, int64_t nNow)
+// The highest height a peer could honestly have right now. A peer's height
+// starts as the number it sends when it connects and nothing proves it, so a
+// peer could claim any height. Blocks can't be made much faster than the target
+// spacing, so a claim is capped at our tip plus the blocks that could have been
+// made since our tip's time (at a quarter of the 60 second target spacing),
+// plus a little slack. Once we're synced (tip a few minutes old) the cap sits
+// just above our own height, so made-up heights can't make us think we're
+// behind.
+static const int64_t PLAUSIBLE_BLOCK_SECONDS = 15;
+static const int PLAUSIBLE_HEIGHT_SLACK = 100;
+
+static int MaxPlausibleHeight()
 {
-    std::vector<int> vHeights;
+    int nHeight = nBestHeightUI;          // atomics: safe from any thread
+    int64_t nTipTime = nBestTimeUI;
+    if (nHeight < 0)
+        return std::numeric_limits<int>::max();
+    int64_t nElapsed = std::max((int64_t)0, GetAdjustedTime() - nTipTime);
+    int64_t nMax = (int64_t)nHeight + nElapsed / PLAUSIBLE_BLOCK_SECONDS + PLAUSIBLE_HEIGHT_SLACK;
+    return (int)std::min(nMax, (int64_t)std::numeric_limits<int>::max());
+}
+
+// A peer's height as far as we believe it
+static int PeerHeight(const CNode* pnode)
+{
+    return std::min(pnode->nKnownHeight, MaxPlausibleHeight());
+}
+
+// Which network a peer counts as when peers vote on the chain height: its /16
+// group, or for local and private addresses (which all share one group) the
+// address itself, so wallets on your own network count separately.
+static std::vector<unsigned char> SyncGroup(const CNode* pnode)
+{
+    if (pnode->addr.IsRoutable())
+        return pnode->addr.GetGroup();
+    std::string strIP = pnode->addr.ToStringIP();
+    return std::vector<unsigned char>(strIP.begin(), strIP.end());
+}
+
+// The chain height our peers agree on: the tallest height that usable peers
+// in at least two different networks report, within SYNC_HEIGHT_SLACK of each
+// other. Each network counts once, at its tallest peer: a lone peer far above
+// everyone else is usually on its own fork, and several connections from one
+// network are probably one operator, so neither counts on its own. With one
+// network, its height. Heights are capped at what's plausible (PeerHeight).
+// fAllowLone: once we have everything the agreeing peers have, count a lone
+// taller peer after all (for choosing who to download from; not for deciding
+// whether we are behind). fAllPeers: also count peers we are avoiding as sync
+// peer for now (fUseAvoided is ignored). Called with cs_vNodes held.
+static int AgreedPeerHeight(const vector<CNode*>& vNodesIn, bool fUseAvoided, int64_t nNow, bool fAllowLone = true, bool fAllPeers = false)
+{
+    // Tallest peer of each network
+    std::map<std::vector<unsigned char>, int> mapGroupHeight;
     BOOST_FOREACH(CNode* pnode, vNodesIn)
     {
-        if (pnode->fDisconnect || !CanSyncFrom(pnode) || (pnode->nSyncAvoidUntil > nNow) != fUseAvoided)
+        if (pnode->fDisconnect || !CanSyncFrom(pnode) || (!fAllPeers && (pnode->nSyncAvoidUntil > nNow) != fUseAvoided))
             continue;
-        vHeights.push_back(pnode->nKnownHeight);
+        int& nGroupHeight = mapGroupHeight.insert(std::make_pair(SyncGroup(pnode), -1)).first->second;
+        nGroupHeight = std::max(nGroupHeight, PeerHeight(pnode));
     }
-    if (vHeights.empty())
+    if (mapGroupHeight.empty())
         return -1;
+    std::vector<int> vHeights;
+    for (std::map<std::vector<unsigned char>, int>::const_iterator it = mapGroupHeight.begin(); it != mapGroupHeight.end(); ++it)
+        vHeights.push_back(it->second);
     std::sort(vHeights.begin(), vHeights.end(), std::greater<int>());
     if (vHeights.size() == 1)
         return vHeights[0];
-    int nAgreed = vHeights[1];   // no two agree: don't trust the tallest alone
+    int nAgreed = vHeights[1];   // no two networks agree: don't trust the tallest alone
     for (size_t i = 0; i + 1 < vHeights.size(); i++)
-        if (vHeights[i] - vHeights[i + 1] <= SYNC_HEIGHT_SLACK)
+        if ((int64_t)vHeights[i] - vHeights[i + 1] <= SYNC_HEIGHT_SLACK)
         {
             nAgreed = vHeights[i];
             break;
@@ -1781,7 +1832,7 @@ static int AgreedPeerHeight(const vector<CNode*>& vNodesIn, bool fUseAvoided, in
     // before our last checkpoint, its blocks are rejected and it is banned.)
     // Without this, a node whose other peers are all behind would never get
     // past them.
-    if (nAgreed <= nBestHeight)
+    if (fAllowLone && nAgreed <= nBestHeight)
         return vHeights[0];
     return nAgreed;
 }
@@ -1789,7 +1840,7 @@ static int AgreedPeerHeight(const vector<CNode*>& vNodesIn, bool fUseAvoided, in
 // Is this peer's height believable next to the others (not a lone outlier)?
 static bool HeightAgreed(const CNode* pnode, int nAgreed)
 {
-    return pnode->nKnownHeight <= nAgreed + SYNC_HEIGHT_SLACK;
+    return (int64_t)PeerHeight(pnode) <= (int64_t)nAgreed + SYNC_HEIGHT_SLACK;
 }
 
 int GetAgreedPeerHeight()
@@ -1846,7 +1897,7 @@ static void StartSync(const vector<CNode*>& vNodesIn)
         {
             if (pnode->fDisconnect || !CanSyncFrom(pnode) || (pnode->nSyncAvoidUntil > nNow) != fUseAvoided)
                 continue;
-            if (pnode->nKnownHeight < nMaxHeight - SYNC_HEIGHT_SLACK || !HeightAgreed(pnode, nMaxHeight))
+            if (PeerHeight(pnode) < nMaxHeight - SYNC_HEIGHT_SLACK || !HeightAgreed(pnode, nMaxHeight))
                 continue;
             int64_t nScore = NodeSyncScore(pnode);
             if (pnodeNewSync == NULL || nScore > nBestScore)
@@ -1873,7 +1924,7 @@ static void StartSync(const vector<CNode*>& vNodesIn)
 // cs_vNodes held.
 static void SwitchIfSyncNodeExhausted(const vector<CNode*>& vNodesIn)
 {
-    if (pnodeSync == NULL || pnodeSync->nKnownHeight > nBestHeight)
+    if (pnodeSync == NULL || PeerHeight(pnodeSync) > nBestHeight)
         return;
     int64_t nNow = GetTime();
     int nAgreed = AgreedPeerHeight(vNodesIn, false, nNow);
@@ -1882,7 +1933,7 @@ static void SwitchIfSyncNodeExhausted(const vector<CNode*>& vNodesIn)
         if (pnode == pnodeSync || pnode->fDisconnect || !CanSyncFrom(pnode) || pnode->nSyncAvoidUntil > nNow ||
             !HeightAgreed(pnode, nAgreed))
             continue;
-        if (pnode->nKnownHeight >= nBestHeight + SYNC_SWITCH_MARGIN)
+        if (PeerHeight(pnode) >= nBestHeight + SYNC_SWITCH_MARGIN)
         {
             printf("sync: %s has no more blocks for us (height %d), %s is at %d, switching\n",
                    pnodeSync->addrName.c_str(), nBestHeight, pnode->addrName.c_str(), pnode->nKnownHeight);
@@ -1907,7 +1958,7 @@ static void UpgradeSyncNodeIfOld(const vector<CNode*>& vNodesIn)
     BOOST_FOREACH(CNode* pnode, vNodesIn)
     {
         if (pnode == pnodeSync || pnode->fDisconnect || !CanSyncFrom(pnode) || pnode->nSyncAvoidUntil > nNow ||
-            !IsPreferredSyncVersion(pnode) || !HeightAgreed(pnode, nAgreed) || pnode->nKnownHeight <= nBestHeight)
+            !IsPreferredSyncVersion(pnode) || !HeightAgreed(pnode, nAgreed) || PeerHeight(pnode) <= nBestHeight)
             continue;
         printf("sync: %s (%s) is an older wallet, switching to %s (%s)\n",
                pnodeSync->addrName.c_str(), pnodeSync->strSubVer.c_str(),
@@ -1959,8 +2010,12 @@ void ThreadMessageHandler2(void* parg)
 
             // Catching up: well behind the height our peers agree on. If
             // every peer is at about our height (or we have none), we're not.
-            int nAgreed = AgreedPeerHeight(vNodesCopy, false, GetTime());
-            bool fNow = nAgreed >= 0 && nBestHeight < nAgreed - CATCHING_UP_BLOCKS;
+            // A node whose newest block is under an hour old is never far
+            // behind, so it always keeps handing out blocks, whatever heights
+            // peers claim.
+            int nAgreed = AgreedPeerHeight(vNodesCopy, false, GetTime(), false, true);
+            bool fTipOld = nBestTimeUI < GetAdjustedTime() - 60 * 60;
+            bool fNow = fTipOld && nAgreed >= 0 && nBestHeight < nAgreed - CATCHING_UP_BLOCKS;
             if (fNow != fCatchingUp)
                 printf(fNow ? "Catching up: not handing out blocks until we're synced (us %d, peers %d)\n"
                             : "Caught up: handing out blocks again (us %d, peers %d)\n",

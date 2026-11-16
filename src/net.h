@@ -52,7 +52,8 @@ bool IsSyncNode(const CNode* pnode);
 void ReleaseSyncNode(CNode* pnode, int64_t nSeconds);
 /** Highest block height any connected peer is known to have (-1 if none) */
 int GetBestPeerHeight();
-/** The height at least two peers agree on (a lone much taller peer doesn't count); -1 if no peers */
+/** The height peers in at least two networks agree on (a lone much taller peer
+ *  doesn't count, and claims are capped at what's plausible); -1 if no peers */
 int GetAgreedPeerHeight();
 /** True while we are well behind the height our peers agree on (set by the
  *  message handler thread). We don't hand out blocks then. */
