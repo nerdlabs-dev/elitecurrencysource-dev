@@ -2519,8 +2519,10 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
         if (!mapOrphanBlocks.count(hash))
             return true; // it was the one pruned; it'll be fetched again with its parents
 
-        // Ask this guy to fill in what we're missing
-        if (pfrom)
+        // Ask this guy to fill in what we're missing. While we're still
+        // downloading the chain, only a 3.0+ wallet (the sync node fills in
+        // the rest), so older wallets never end up serving our download.
+        if (pfrom && (PeerClientVersion(pfrom) >= MIN_SYNC_PEER_VERSION || !IsInitialBlockDownload()))
         {
             pfrom->PushGetBlocks(pindexBest, GetOrphanRoot(pblock2));
             // ppcoin: getblocks may not obtain the ancestor block rejected
@@ -3420,7 +3422,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                 pfrom->AskFor(inv, inv.type == MSG_BLOCK && IsSyncNode(pfrom));
             }
             else if (inv.type == MSG_BLOCK && mapOrphanBlocks.count(inv.hash)) {
-                pfrom->PushGetBlocks(pindexBest, GetOrphanRoot(mapOrphanBlocks[inv.hash]));
+                if (PeerClientVersion(pfrom) >= MIN_SYNC_PEER_VERSION || !IsInitialBlockDownload())
+                    pfrom->PushGetBlocks(pindexBest, GetOrphanRoot(mapOrphanBlocks[inv.hash]));
             } else if (nInv == nLastBlock) {
                 // In case we are on a very long side-chain, it is possible that we already have
                 // the last block in an inv bundle sent in response to getblocks. Try to detect
@@ -3978,10 +3981,12 @@ bool ProcessMessages(CNode* pfrom)
 
 bool CanSyncFrom(const CNode* pnode)
 {
-    // A full node, not a one-shot connection, not far behind us, and a
-    // version that serves blocks. (How tall it is compared with the other
-    // peers is up to StartSync in net.cpp.)
+    // A full node, not a one-shot connection, not far behind us, a version
+    // that serves blocks, and a 3.0 or newer wallet (MIN_SYNC_PEER_VERSION).
+    // (How tall it is compared with the other peers is up to StartSync in
+    // net.cpp.)
     return !pnode->fClient && !pnode->fOneShot && pnode->nVersion != 0 &&
+           PeerClientVersion(pnode) >= MIN_SYNC_PEER_VERSION &&
            pnode->fSuccessfullyConnected &&
            (pnode->nKnownHeight > (nBestHeight - 144)) &&
            (pnode->nVersion < NOBLKS_VERSION_START ||

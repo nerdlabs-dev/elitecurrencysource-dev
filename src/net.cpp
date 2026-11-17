@@ -1720,7 +1720,7 @@ void ThreadMessageHandler(void* parg)
 
 // Client version a peer announced in its sub-version, e.g. "/ Elite:3.0.1/"
 // gives 30001 (major*10000 + minor*100 + revision); 0 if it can't be read
-static int PeerClientVersion(const CNode* pnode)
+int PeerClientVersion(const CNode* pnode)
 {
     const std::string& s = pnode->strSubVer;
     size_t pos = s.rfind(':');
@@ -1735,19 +1735,12 @@ static int PeerClientVersion(const CNode* pnode)
 // Is this peer new enough that we prefer to download from it? 3.0.1 and newer
 // announce 500 blocks per getblocks request instead of 50. A threshold, not
 // "highest wins", so a peer claiming a made-up higher version gains nothing.
-static bool IsPreferredSyncVersion(const CNode* pnode)
-{
-    return PeerClientVersion(pnode) >= MIN_SYNC_PEER_VERSION;
-}
 
-// Among peers that are tall enough (see StartSync): preferred versions win,
-// then the one we heard from most recently
+// Among peers that are tall enough (see StartSync): the one we heard from
+// most recently. (Only 3.0+ wallets get this far, see CanSyncFrom.)
 static int64_t NodeSyncScore(const CNode* pnode)
 {
-    int64_t nScore = pnode->nLastRecv;
-    if (IsPreferredSyncVersion(pnode))
-        nScore += (int64_t)1 << 62;
-    return nScore;
+    return pnode->nLastRecv;
 }
 
 bool fCatchingUp = false;
@@ -1877,8 +1870,8 @@ int GetBestPeerHeight()
 // Height comes first: only peers within SYNC_HEIGHT_SLACK blocks of the height
 // peers agree on are candidates, so a new node neither latches onto another
 // node that is itself still syncing nor follows a lone peer on a much taller
-// fork. Among those, newer wallets win, then the peer we heard from most
-// recently. Peers we recently gave up on (ReleaseSyncNode)
+// fork. Only 3.0+ wallets are candidates (CanSyncFrom); among those, the peer
+// we heard from most recently. Peers we recently gave up on (ReleaseSyncNode)
 // are only used if there's no one else.
 static void StartSync(const vector<CNode*>& vNodesIn)
 {
@@ -1945,31 +1938,6 @@ static void SwitchIfSyncNodeExhausted(const vector<CNode*>& vNodesIn)
     }
 }
 
-// The sync peer is older than MIN_SYNC_PEER_VERSION (50-block batches) but a
-// preferred-version peer at the agreed height is available: switch to it.
-// Only ever from old to new, so it can't flip back and forth. Called with
-// cs_vNodes held.
-static void UpgradeSyncNodeIfOld(const vector<CNode*>& vNodesIn)
-{
-    if (pnodeSync == NULL || IsPreferredSyncVersion(pnodeSync))
-        return;
-    int64_t nNow = GetTime();
-    int nAgreed = AgreedPeerHeight(vNodesIn, false, nNow);
-    BOOST_FOREACH(CNode* pnode, vNodesIn)
-    {
-        if (pnode == pnodeSync || pnode->fDisconnect || !CanSyncFrom(pnode) || pnode->nSyncAvoidUntil > nNow ||
-            !IsPreferredSyncVersion(pnode) || !HeightAgreed(pnode, nAgreed) || PeerHeight(pnode) <= nBestHeight)
-            continue;
-        printf("sync: %s (%s) is an older wallet, switching to %s (%s)\n",
-               pnodeSync->addrName.c_str(), pnodeSync->strSubVer.c_str(),
-               pnode->addrName.c_str(), pnode->strSubVer.c_str());
-        pnodeSync->nSyncAvoidUntil = nNow + 10 * 60;
-        pnodeSync = NULL;
-        StartSync(vNodesIn);
-        return;
-    }
-}
-
 // Wakes the message handler when a whole message has arrived
 static boost::mutex mutexMsgProc;
 static boost::condition_variable condMsgProc;
@@ -2002,11 +1970,7 @@ void ThreadMessageHandler2(void* parg)
             if (pnodeSync == NULL)
                 StartSync(vNodesCopy);
             else
-            {
                 SwitchIfSyncNodeExhausted(vNodesCopy);
-                if (pnodeSync)
-                    UpgradeSyncNodeIfOld(vNodesCopy);
-            }
 
             // Catching up: well behind the height our peers agree on. If
             // every peer is at about our height (or we have none), we're not.

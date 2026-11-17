@@ -48,6 +48,9 @@ CNode* ConnectNode(CAddress addrConnect, const char *strDest = NULL);
 void MapPort();
 /** Is this the peer we're downloading the chain from? */
 bool IsSyncNode(const CNode* pnode);
+/** The wallet version a peer reports in its subversion, as major*10000 +
+ *  minor*100 + revision (3.0.1 = 30001); 0 if it can't be read */
+int PeerClientVersion(const CNode* pnode);
 /** Stop downloading from this peer and pick another (it's skipped for nSeconds) */
 void ReleaseSyncNode(CNode* pnode, int64_t nSeconds);
 /** Highest block height any connected peer is known to have (-1 if none) */

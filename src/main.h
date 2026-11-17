@@ -47,10 +47,11 @@ static const int SYNC_STALLS_BEFORE_SWITCH = 2;
 static const int SYNC_HEIGHT_SLACK = 1000;
 /** Move off a sync peer that has run out of blocks when another peer is at least this far ahead */
 static const int SYNC_SWITCH_MARGIN = 100;
-/** Oldest wallet we prefer to download blocks from, as major*10000 +
- *  minor*100 + revision: 3.0.1 sends 500-block batches, older ones 50. Older
- *  peers are still used when no peer this new is available. */
-static const int MIN_SYNC_PEER_VERSION = 30001;
+/** Oldest wallet we download the block chain from (the sync node), as
+ *  major*10000 + minor*100 + revision: 3.0. Older wallets are never picked as
+ *  sync node and don't count when peers agree on the chain height; once we
+ *  are synced, new blocks are still taken from any peer. */
+static const int MIN_SYNC_PEER_VERSION = 30000;
 /** While we are this many blocks behind the height our peers agree on, we
  *  don't hand out blocks (getblocks/getheaders), so our own download goes faster */
 static const int CATCHING_UP_BLOCKS = 144;
