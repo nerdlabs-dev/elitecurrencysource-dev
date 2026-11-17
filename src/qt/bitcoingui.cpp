@@ -39,6 +39,7 @@
 #endif
 
 #include <QDebug>
+#include <QLocale>
 #include <QApplication>
 #include <QMainWindow>
 #include <QMenuBar>
@@ -869,6 +870,11 @@ void BitcoinGUI::updateSyncEstimate()
         syncEstimateText = nSecsLeft < 60 ? tr("less than a minute left")
                                           : tr("about %1 left").arg(FormatTimeLeft(nSecsLeft));
     }
+    // Speed on the bar itself, in blocks a minute: the average once there is
+    // one (steadier), the current speed before that
+    double dPerMin = (nSpanMs >= 30 * 1000 ? dRate : dRateNow) * 60;
+    if (dPerMin >= 0 && !(nSpanMs >= 30 * 1000 && nGained <= 0))
+        syncEstimateText += QString("   ") + QChar(0x00B7) + QString("   ") + tr("%1 blocks/min").arg(QLocale().toString((qlonglong)(dPerMin + 0.5)));
     syncRateText = strSpeed + QString("<br>") + strToGo;
 
     if (clientModel)

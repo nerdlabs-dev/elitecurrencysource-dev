@@ -57,6 +57,7 @@ Added - Debug window: Peers tab (address, direction, version, height, ping, traf
 Added - Debug window: Network Traffic tab with a 10 minute graph and totals
 Fix - a peer claiming a made-up block height could make a synced wallet stop handing out blocks to others; claimed heights are now capped at what's plausible, each network counts once, and a wallet whose newest block is under an hour old always serves
 Added - sync bar tooltip shows blocks per second (right now and averaged over the last few minutes), from the start of the sync
+Added - sync bar shows the download speed in blocks a minute next to the time left
 Changed - window title shows Pre Release
 Removed - old NovaCoin/Bitcoin packaging and art (Debian, Gitian, NSIS installer, bitmaps, Doxygen logo); Windows icon renamed elite.ico
 
