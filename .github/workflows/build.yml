@@ -7,7 +7,7 @@
 # Builds use make -k so a failing build reports all of its errors at once.
 #
 # Every push keeps the binaries as downloadable "artifacts" on the run's page.
-# Pushing a version tag (e.g. v3.0.1.0) also publishes them as a GitHub release.
+# Pushing a version tag (e.g. v3.0.0.1) also publishes them as a GitHub release.
 
 name: Build
 

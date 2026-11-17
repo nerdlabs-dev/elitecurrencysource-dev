@@ -92,7 +92,8 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     // lays itself out to the space it gets
     setMinimumSize(800, 580);
     resize(960, 710);
-    setWindowTitle(tr("Elite Currency"));
+    // Pre Release: test builds, so testers know this isn't a final wallet
+    setWindowTitle(tr("Elite Currency") + " - " + tr("Pre Release"));
 
 
 #ifndef Q_OS_MAC
@@ -797,6 +798,12 @@ static QString FormatTimeLeft(qint64 nSecs)
     return QObject::tr("%1 days %2 h").arg(nHours / 24).arg(nHours % 24);
 }
 
+// Blocks per second, with one decimal below 10
+static QString FormatBlockRate(double dRate)
+{
+    return QString::number(dRate, 'f', dRate < 10 ? 1 : 0);
+}
+
 void BitcoinGUI::updateSyncEstimate()
 {
     int nHeight = nBestHeightUI;
@@ -828,25 +835,41 @@ void BitcoinGUI::updateSyncEstimate()
     int nGained = syncSamples.back().second - syncSamples.front().second;
     int nLeft = syncTargetHeight - nHeight;
 
+    // Blocks per second: "now" is the last SYNC_RATE_NOW_MS, the average is
+    // the whole window the time-left estimate uses
+    double dRate = nSpanMs > 0 ? nGained * 1000.0 / nSpanMs : 0;
+    double dRateNow = -1;
+    for (std::deque<std::pair<qint64, int> >::const_reverse_iterator it = syncSamples.rbegin(); it != syncSamples.rend(); ++it)
+    {
+        qint64 nMs = nNowMs - it->first;
+        if (nMs > 0 && (nMs >= SYNC_RATE_NOW_MS || it + 1 == syncSamples.rend()))
+        {
+            dRateNow = (nHeight - it->second) * 1000.0 / nMs;
+            break;
+        }
+    }
+    QString strSpeed;
+    if (dRateNow < 0)
+        strSpeed = tr("Blocks per second: measuring...");
+    else if (nSpanMs < 30 * 1000)
+        strSpeed = tr("Blocks per second: %1").arg(FormatBlockRate(dRateNow));
+    else
+        strSpeed = tr("Blocks per second: %1 now, %2 average over the last %3")
+                   .arg(FormatBlockRate(dRateNow)).arg(FormatBlockRate(dRate)).arg(FormatTimeLeft(nSpanMs / 1000));
+    QString strToGo = (nLeft == 1 ? tr("1 block to go (highest peer: %1).") : tr("%1 blocks to go (highest peer: %2).").arg(nLeft))
+                      .arg(syncTargetHeight);
+
     if (nSpanMs < 30 * 1000)
-    {
         syncEstimateText = tr("estimating time left...");
-        syncRateText = tr("%n block(s) to go.", "", nLeft);
-    }
     else if (nGained <= 0)
-    {
         syncEstimateText = tr("waiting for blocks...");
-        syncRateText = tr("No blocks received in the last %n minute(s); %1 to go.", "", (int)(nSpanMs / 60000)).arg(nLeft);
-    }
     else
     {
-        double dRate = nGained * 1000.0 / nSpanMs;   // blocks per second
         qint64 nSecsLeft = (qint64)(nLeft / dRate);
         syncEstimateText = nSecsLeft < 60 ? tr("less than a minute left")
                                           : tr("about %1 left").arg(FormatTimeLeft(nSecsLeft));
-        syncRateText = tr("Downloading %1 blocks a second, %2 blocks to go (highest peer: %3).")
-                       .arg(QString::number(dRate, 'f', dRate < 10 ? 1 : 0)).arg(nLeft).arg(syncTargetHeight);
     }
+    syncRateText = strSpeed + QString("<br>") + strToGo;
 
     if (clientModel)
         setNumBlocks(clientModel->getNumBlocks(), clientModel->getNumBlocksOfPeers());

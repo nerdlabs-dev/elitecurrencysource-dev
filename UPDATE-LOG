@@ -2,7 +2,7 @@
 ===============
 
 
-v3.0.1.0
+v3.0.0.1 (Pre Release)
 
 Builds on current systems: OpenSSL 3, Boost 1.66 to 1.92, GCC 13+, Clang/Xcode, Qt 5.15, miniupnpc 2.2.8+
 Added - GitHub Actions builds for Linux, Windows and macOS (Apple Silicon and Intel)
@@ -56,6 +56,8 @@ Fix - leftover peers.dat.XXXX temp files are cleaned up at startup and after a f
 Added - Debug window: Peers tab (address, direction, version, height, ping, traffic; click a peer for details)
 Added - Debug window: Network Traffic tab with a 10 minute graph and totals
 Fix - a peer claiming a made-up block height could make a synced wallet stop handing out blocks to others; claimed heights are now capped at what's plausible, each network counts once, and a wallet whose newest block is under an hour old always serves
+Added - sync bar tooltip shows blocks per second (right now and averaged over the last few minutes), from the start of the sync
+Changed - window title shows Pre Release
 Removed - old NovaCoin/Bitcoin packaging and art (Debian, Gitian, NSIS installer, bitmaps, Doxygen logo); Windows icon renamed elite.ico
 
 

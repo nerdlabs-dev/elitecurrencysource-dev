@@ -8,6 +8,8 @@ static const int MODEL_UPDATE_DELAY = 500;
    stretch of time the download rate is averaged over (milliseconds) */
 static const int SYNC_ESTIMATE_DELAY = 5000;
 static const int SYNC_ESTIMATE_WINDOW_MS = 3 * 60 * 1000;
+/* Sync speed shown as "now" in the tooltip: blocks per second over this long */
+static const int SYNC_RATE_NOW_MS = 15 * 1000;
 
 /* AskPassphraseDialog -- Maximum passphrase length */
 static const int MAX_PASSPHRASE_SIZE = 1024;
