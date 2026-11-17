@@ -19,6 +19,8 @@
 #include "walletdb.h"
 
 extern bool fWalletUnlockStakingOnly;
+// Elite: change returns to its source address (see -returnchange)
+extern bool fReturnChangeToSource;
 extern bool fConfChange;
 class CAccountingEntry;
 class CWalletTx;
