@@ -3,6 +3,8 @@
 
 /* Milliseconds between model updates */
 static const int MODEL_UPDATE_DELAY = 500;
+/* Block height display refresh, in milliseconds (10 times a second, as on FlapX) */
+static const int LIVE_HEIGHT_DELAY = 100;
 
 /* Sync progress bar: how often the time-left estimate is recomputed, and the
    stretch of time the download rate is averaged over (milliseconds) */

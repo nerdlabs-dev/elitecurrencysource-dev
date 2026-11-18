@@ -31,6 +31,9 @@ static const int LAST_POW_BLOCK = 17280;
 
 static const unsigned int MAX_BLOCK_SIZE = 1000000;
 static const unsigned int MAX_BLOCK_SIZE_GEN = MAX_BLOCK_SIZE/2;
+/** Start a new blkNNNN.dat file once the current one reaches this size (25 MiB).
+ *  Existing larger files keep working; only where new blocks go changes. */
+static const unsigned int MAX_BLOCKFILE_SIZE = 25 * 1024 * 1024;
 static const unsigned int MAX_BLOCK_SIGOPS = MAX_BLOCK_SIZE/50;
 // Orphan transactions are capped at 5000 bytes each, so this keeps the pool
 // under 5 MB (it was MAX_BLOCK_SIZE/100 = 10000, up to 50 MB)
@@ -156,6 +159,10 @@ void SyncWithWallets(const CTransaction& tx, const CBlock* pblock = NULL, bool f
 bool ProcessBlock(CNode* pfrom, CBlock* pblock);
 bool CheckDiskSpace(uint64_t nAdditionalBytes=0);
 FILE* OpenBlockFile(unsigned int nFile, unsigned int nBlockPos, const char* pszMode="rb");
+boost::filesystem::path GetBlockFileDir();
+boost::filesystem::path BlockFilePath(unsigned int nFile);
+/** Create the block file directory and move block files from older versions into it */
+bool MigrateBlockFiles(std::string& strError);
 FILE* AppendBlockFile(unsigned int& nFileRet);
 bool LoadBlockIndex(bool fAllowNew=true);
 void PrintBlockTree();

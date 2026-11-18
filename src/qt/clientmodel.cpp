@@ -24,8 +24,11 @@ ClientModel::ClientModel(OptionsModel *optionsModel, QObject *parent) :
 {
     numBlocksAtStartup = -1;
 
+    // The block count is read without locking the core (nBestHeightUI), so it
+    // can be checked 10 times a second and the number moves smoothly while
+    // syncing; updateTimer only signals when it changed
     pollTimer = new QTimer(this);
-    pollTimer->setInterval(MODEL_UPDATE_DELAY);
+    pollTimer->setInterval(LIVE_HEIGHT_DELAY);
     pollTimer->start();
     connect(pollTimer, SIGNAL(timeout()), this, SLOT(updateTimer()));
 

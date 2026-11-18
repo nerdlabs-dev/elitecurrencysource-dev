@@ -691,6 +691,12 @@ bool AppInit2()
 
     // ********************************************************* Step 7: load blockchain
 
+    {
+        std::string strBlockFileError;
+        if (!MigrateBlockFiles(strBlockFileError))
+            return InitError(strBlockFileError);
+    }
+
     if (!bitdb.Open(GetDataDir()))
     {
         string msg = strprintf(_("Error initializing database environment %s!"

@@ -54,7 +54,7 @@ void init_blockindex(leveldb::Options& options, bool fRemoveOld = false) {
 
         while (true)
         {
-            boost::filesystem::path strBlockFile = GetDataDir() / strprintf("blk%04u.dat", nFile);
+            boost::filesystem::path strBlockFile = BlockFilePath(nFile);
 
             // Break if no such file
             if( !boost::filesystem::exists( strBlockFile ) )
