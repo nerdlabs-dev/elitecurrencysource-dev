@@ -10,7 +10,7 @@ It reads the RPC login from 1337.conf, asks the node for the block hash and
 stake modifier checksum every 25,000 blocks (and at every height that
 already has a checkpoint), and checks that the existing checkpoints in
 src/checkpoints.cpp and src/kernel.cpp match what the node has. Then it
-writes checkpoints-<height>.txt with both lists ready to paste.
+writes checkpoints.txt with both lists ready to paste.
 
 With --apply it also writes the new lists into src/checkpoints.cpp and
 src/kernel.cpp. It refuses if any existing checkpoint doesn't match: that
@@ -259,7 +259,7 @@ def main():
 
     nOldPoints = sum(1 for h in old_points if h <= last)
     nOldMods = sum(1 for h in old_mods if h <= last)
-    out = "checkpoints-%d.txt" % last
+    out = "checkpoints.txt"
     with open(out, "w") as f:
         f.write("// Elite checkpoints to block %d, every %d blocks\n" % (last, args.interval))
         f.write("// Read from a node at block %d on %s\n" % (tip, time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())))
