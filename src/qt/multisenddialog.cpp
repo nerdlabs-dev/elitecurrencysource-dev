@@ -21,6 +21,41 @@ MultiSendDialog::MultiSendDialog(QWidget *parent) :
 	 model(0)
 {
     ui->setupUi(this);
+    layoutButtons();
+}
+
+void MultiSendDialog::showEvent(QShowEvent *event)
+{
+    // The theme's fonts are in place by now, so size the buttons again
+    layoutButtons();
+    QWidget::showEvent(event);
+}
+
+void MultiSendDialog::layoutButtons()
+{
+    // The buttons were fixed at 91 pixels wide, which cut off "View
+    // MultiSend" and "Deactivate" in the theme's font. Size them all alike,
+    // wide enough for the longest label, in two columns with "View MultiSend"
+    // across the top, and the message box to their right.
+    QList<QPushButton*> buttons;
+    buttons << ui->viewButton << ui->addButton << ui->deleteButton << ui->activateButton << ui->disableButton;
+    int w = 0, h = 0;
+    foreach (QPushButton *button, buttons)
+    {
+        button->ensurePolished();
+        QSize hint = button->sizeHint();
+        w = qMax(w, hint.width() + 16);
+        h = qMax(h, hint.height());
+    }
+    h = qMax(h, 26);
+    const int x = 20, y = 200, gap = 10;
+    ui->viewButton->setGeometry(x, y, 2 * w + gap, h);
+    ui->addButton->setGeometry(x, y + h + gap, w, h);
+    ui->deleteButton->setGeometry(x + w + gap, y + h + gap, w, h);
+    ui->activateButton->setGeometry(x, y + 2 * (h + gap), w, h);
+    ui->disableButton->setGeometry(x + w + gap, y + 2 * (h + gap), w, h);
+    QRect message = ui->message->geometry();
+    ui->message->setGeometry(x + 2 * w + gap + 30, y, qMax(message.width(), 381), 3 * h + 2 * gap);
 }
 
 MultiSendDialog::~MultiSendDialog()

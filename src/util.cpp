@@ -1077,9 +1077,64 @@ boost::filesystem::path GetConfigFile()
     return pathConfigFile;
 }
 
+// Random bytes as hex, for the generated RPC login
+static std::string RandomHex(int nBytes)
+{
+    std::vector<unsigned char> vch(nBytes);
+    if (RAND_bytes(&vch[0], nBytes) != 1)
+        return "";
+    return HexStr(vch);
+}
+
+// On first start, when there's no 1337.conf (and no -conf was given), write
+// one with a random RPC user name and password, the RPC port, and RPC limited
+// to this computer. RPC itself stays off in the wallet (server=1 is left
+// commented out); the daemon turns it on by itself, and now has a login to
+// use. An existing file is never touched.
+static void CreateDefaultConfigFile()
+{
+    if (mapArgs.count("-conf"))
+        return;
+    boost::filesystem::path path = GetConfigFile();
+    // (A missing file is reported through ec, so ec alone isn't a reason to
+    // stop; fopen's "x" below refuses to overwrite a file that does exist.)
+    boost::system::error_code ec;
+    if (boost::filesystem::exists(path, ec))
+        return;
+
+    std::string strUser = RandomHex(6), strPassword = RandomHex(32);
+    if (strUser.empty() || strPassword.empty())
+        return;   // no randomness: better no file than a guessable login
+    bool fTestNetConf = GetBoolArg("-testnet", false);
+
+    FILE* file = fopen(path.string().c_str(), "wx");   // fails if it appeared meanwhile
+    if (!file)
+        return;
+    fprintf(file,
+        "# Elite configuration file, made on the wallet's first start.\n"
+        "#\n"
+        "# RPC (for scripts, explorers and pools) is off in the wallet. To turn it\n"
+        "# on, remove the # in front of server=1 below and restart the wallet.\n"
+        "# The login below was generated at random for this wallet: keep this file\n"
+        "# private. rpcallowip=127.0.0.1 means only programs on this computer can\n"
+        "# use RPC.\n"
+        "\n"
+        "#server=1\n"
+        "rpcuser=elite%s\n"
+        "rpcpassword=%s\n"
+        "rpcport=%d\n"
+        "rpcallowip=127.0.0.1\n",
+        strUser.c_str(), strPassword.c_str(), fTestNetConf ? 26715 : 13372);
+    fclose(file);
+#ifndef WIN32
+    boost::filesystem::permissions(path, boost::filesystem::owner_read | boost::filesystem::owner_write, ec);
+#endif
+}
+
 void ReadConfigFile(map<string, string>& mapSettingsRet,
                     map<string, vector<string> >& mapMultiSettingsRet)
 {
+    CreateDefaultConfigFile();
     boost::filesystem::ifstream streamConfig(GetConfigFile());
     if (!streamConfig.good())
         return; // No bitcoin.conf file is OK

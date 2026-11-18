@@ -16,6 +16,7 @@
 #include <QEvent>
 #include <QLocale>
 #include <QPainter>
+#include <QStyle>
 #include <QRadialGradient>
 #include <QTextLayout>
 #include <QUrl>
@@ -24,13 +25,11 @@
 static const QColor COLOR_GOLD(221, 182, 111);
 static const QColor COLOR_GOLD_DIM(141, 122, 85);
 static const QColor COLOR_TEXT_GREY(132, 132, 132);
-static const QColor COLOR_ROW_TEXT(112, 112, 112);
-static const QColor COLOR_ROW_HOVER(160, 160, 160);
-static const QColor COLOR_AMOUNT_OUT(124, 124, 124);
+static const QColor COLOR_GOLD_BRIGHT(243, 230, 200);
 
 // Height of one row of the recent transactions list; the list shows as many
 // rows as fit in the space the window gives it
-static const int TX_ROW_HEIGHT = 30;
+static const int TX_ROW_HEIGHT = 26;
 
 // Widest the page's content gets; on wider windows it is centred
 static const int MAX_CONTENT_WIDTH = 1400;
@@ -85,11 +84,15 @@ public:
         qint64 amount = index.data(TransactionTableModel::AmountRole).toLongLong();
         bool confirmed = index.data(TransactionTableModel::ConfirmedRole).toBool();
 
-        // Amount on the right: gold coming in, grey going out
+        // Everything in the balance's gold, brighter under the mouse; amounts
+        // not yet confirmed (or stakes not yet mature) are in [brackets]
+        QColor textColor = hover ? COLOR_GOLD_BRIGHT : COLOR_GOLD;
+
+        // Amount on the right
         QString amountText = BitcoinUnits::format(unit, amount, true);
         if (!confirmed)
             amountText = QString("[") + amountText + QString("]");
-        QColor amountColor = !confirmed ? COLOR_GOLD_DIM : amount < 0 ? COLOR_AMOUNT_OUT : COLOR_GOLD;
+        QColor amountColor = textColor;
         painter->setFont(amountFont);
         QFontMetrics amountMetrics(amountFont);
         int amountWidth = amountMetrics.boundingRect(amountText).width() + 8;
@@ -101,7 +104,7 @@ public:
         QFontMetrics metrics(font);
         QString dateText = QLocale().toString(date.date(), QLocale::ShortFormat);
         int dateWidth = metrics.boundingRect(dateText).width() + 12;
-        painter->setPen(hover ? COLOR_ROW_HOVER : COLOR_ROW_TEXT);
+        painter->setPen(textColor);
         painter->drawText(rect, Qt::AlignLeft | Qt::AlignVCenter, dateText);
         QRect addressRect = rect.adjusted(dateWidth, 0, -amountWidth - 16, 0);
         painter->drawText(addressRect, Qt::AlignLeft | Qt::AlignVCenter,
@@ -160,7 +163,7 @@ void ScaledImage::paintEvent(QPaintEvent *event)
     painter.drawPixmap(QPointF((width() - drawn.width()) / 2, (height() - drawn.height()) / 2), scaled);
 }
 
-OrnamentFrame::OrnamentFrame(QWidget *parent) : QFrame(parent)
+OrnamentFrame::OrnamentFrame(QWidget *parent) : QFrame(parent), header(0)
 {
     cornerLeft = QPixmap(":/images/ornament-corner");
     cornerRight = QPixmap::fromImage(cornerLeft.toImage().mirrored(true, false));
@@ -175,6 +178,9 @@ void OrnamentFrame::paintEvent(QPaintEvent *event)
     // The panel sits inside the ornaments, which reach out over its corners
     int inset = cornerLeft.isNull() ? 0 : cornerLeft.width() / 4;
     QRectF panel = QRectF(rect()).adjusted(inset, inset * 1.6, -inset, 0);
+    // With a header, the panel starts below it
+    if (header && header->isVisible())
+        panel.setTop(qMax(panel.top(), (qreal)header->geometry().bottom() + 8));
     QLinearGradient fill(panel.topLeft(), panel.bottomLeft());
     fill.setColorAt(0, QColor(18, 18, 18, 235));
     fill.setColorAt(1, QColor(20, 20, 20, 200));
@@ -233,6 +239,7 @@ OverviewPage::OverviewPage(QWidget *parent) :
         "#buttonLock { color: %4; background: #121212; border: 1px solid #262626; border-radius: 17px;"
         "  min-height: 32px; max-height: 32px; padding: 0 30px; }"
         "#buttonLock:hover { color: %1; border-color: %3; }"
+        "#buttonLock[unlocked=\"true\"] { color: %1; border-color: %1; }"
         "#buttonLock:pressed { background: #0c0c0c; }")
         .arg(COLOR_GOLD.name(), COLOR_TEXT_GREY.name(), COLOR_GOLD_DIM.name(), QColor(110, 110, 110).name()));
 
@@ -242,7 +249,9 @@ OverviewPage::OverviewPage(QWidget *parent) :
     connect(ui->buttonDiscord, SIGNAL(clicked()), this, SLOT(openDiscord()));
     connect(ui->buttonX, SIGNAL(clicked()), this, SLOT(openX()));
 
-    // Recent transactions
+    // Recent transactions: the title sits above the panel, so the panel holds
+    // more rows
+    ui->txFrame->setHeader(ui->labelRecentTitle);
     ui->listTransactions->setItemDelegate(txdelegate);
     ui->listTransactions->setMinimumHeight(2 * TX_ROW_HEIGHT);
     ui->listTransactions->setAttribute(Qt::WA_MacShowFocusRect, false);
@@ -439,6 +448,11 @@ void OverviewPage::setEncryptionStatus(int status)
         ui->buttonLock->setToolTip(tr("Your wallet is locked. Click to unlock it for staking."));
         break;
     }
+    // Gold outline and text while unlocked (see the stylesheet above); the
+    // style has to be re-applied for a changed property to show
+    ui->buttonLock->setProperty("unlocked", status == WalletModel::Unlocked);
+    ui->buttonLock->style()->unpolish(ui->buttonLock);
+    ui->buttonLock->style()->polish(ui->buttonLock);
     ui->buttonLock->show();
 }
 

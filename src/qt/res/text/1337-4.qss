@@ -104,7 +104,13 @@ QMenu::item
 {
     background: transparent;
     color: #d9d2c3;
-    padding: 5px 24px 5px 28px;
+    padding: 5px 24px 5px 36px;
+}
+
+/* Keep the icons off the menu's left edge */
+QMenu::icon
+{
+    padding-left: 10px;
 }
 
 QMenu::item:selected

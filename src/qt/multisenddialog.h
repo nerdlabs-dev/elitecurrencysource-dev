@@ -27,8 +27,11 @@ private slots:
 	void on_disableButton_clicked();
 	void on_addressBookButton_clicked();
 
-	
+protected:
+    void showEvent(QShowEvent *event);
+
 private:
+    void layoutButtons();
     Ui::MultiSendDialog *ui;
 	WalletModel *model;
 };
