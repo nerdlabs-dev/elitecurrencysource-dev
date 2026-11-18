@@ -38,9 +38,6 @@ class OrnamentFrame : public QFrame
 {
 public:
     explicit OrnamentFrame(QWidget *parent = 0);
-    /** A widget at the top of the frame (the title) that sits above the
-     *  panel, between the corner ornaments, rather than inside it */
-    void setHeader(QWidget *widget) { header = widget; update(); }
 
 protected:
     void paintEvent(QPaintEvent *event);
@@ -48,7 +45,6 @@ protected:
 private:
     QPixmap cornerLeft;
     QPixmap cornerRight;
-    QWidget *header;
 };
 
 /** Overview ("home") page widget */

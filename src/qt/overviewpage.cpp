@@ -163,7 +163,7 @@ void ScaledImage::paintEvent(QPaintEvent *event)
     painter.drawPixmap(QPointF((width() - drawn.width()) / 2, (height() - drawn.height()) / 2), scaled);
 }
 
-OrnamentFrame::OrnamentFrame(QWidget *parent) : QFrame(parent), header(0)
+OrnamentFrame::OrnamentFrame(QWidget *parent) : QFrame(parent)
 {
     cornerLeft = QPixmap(":/images/ornament-corner");
     cornerRight = QPixmap::fromImage(cornerLeft.toImage().mirrored(true, false));
@@ -178,9 +178,6 @@ void OrnamentFrame::paintEvent(QPaintEvent *event)
     // The panel sits inside the ornaments, which reach out over its corners
     int inset = cornerLeft.isNull() ? 0 : cornerLeft.width() / 4;
     QRectF panel = QRectF(rect()).adjusted(inset, inset * 1.6, -inset, 0);
-    // With a header, the panel starts below it
-    if (header && header->isVisible())
-        panel.setTop(qMax(panel.top(), (qreal)header->geometry().bottom() + 8));
     QLinearGradient fill(panel.topLeft(), panel.bottomLeft());
     fill.setColorAt(0, QColor(18, 18, 18, 235));
     fill.setColorAt(1, QColor(20, 20, 20, 200));
@@ -249,9 +246,8 @@ OverviewPage::OverviewPage(QWidget *parent) :
     connect(ui->buttonDiscord, SIGNAL(clicked()), this, SLOT(openDiscord()));
     connect(ui->buttonX, SIGNAL(clicked()), this, SLOT(openX()));
 
-    // Recent transactions: the title sits above the panel, so the panel holds
-    // more rows
-    ui->txFrame->setHeader(ui->labelRecentTitle);
+    // Recent transactions: the title sits above the frame, under the crest,
+    // so the panel holds more rows
     ui->listTransactions->setItemDelegate(txdelegate);
     ui->listTransactions->setMinimumHeight(2 * TX_ROW_HEIGHT);
     ui->listTransactions->setAttribute(Qt::WA_MacShowFocusRect, false);
