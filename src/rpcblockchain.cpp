@@ -276,7 +276,7 @@ Value getblock(const Array& params, bool fHelp)
     uint256 hash(strHash);
 
     LOCK(cs_main);
-    map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hash);
+    BlockMap::iterator mi = mapBlockIndex.find(hash);
     if (mi == mapBlockIndex.end() || mi->second == NULL)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
 
@@ -309,7 +309,7 @@ Value getblockheader(const Array& params, bool fHelp)
     bool fVerbose = params.size() > 1 ? ParamBool(params[1], "verbose") : true;
 
     LOCK(cs_main);
-    map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hash);
+    BlockMap::iterator mi = mapBlockIndex.find(hash);
     if (mi == mapBlockIndex.end() || mi->second == NULL)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
     CBlockIndex* pindex = mi->second;
@@ -445,7 +445,7 @@ Value gettxout(const Array& params, bool fHelp)
         uint256 hashBlock = 0;
         if (!GetTransaction(hash, tx, hashBlock))
             return Value::null;
-        map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+        BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
         if (mi != mapBlockIndex.end() && mi->second && mi->second->IsInMainChain())
             nConfirmations = nBestHeight - mi->second->nHeight + 1;
     }

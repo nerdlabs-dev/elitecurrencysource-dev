@@ -68,6 +68,8 @@ Fix - a peer claiming a made-up block height could make a synced wallet stop han
 Added - sync bar tooltip shows blocks per second (right now and averaged over the last few minutes), from the start of the sync
 Added - sync bar shows the download speed in blocks a minute next to the time left
 Added - Elite Status on the overview changes with how much the wallet holds: Noob, Entrepreneur (500K), Millionaire (1M), Investor (10M), Magnate (100M), Mogul (250M), Tycoon (500M), Billionaire (1B), Elite (3B); hover it to see the next level
+Changed - checkpoints and stake modifier checkpoints every 25,000 blocks up to 5,725,000 (230 of each), replacing the old irregular lists; read from a fully synced node, and every old checkpoint at the same height matched
+Faster startup - "Loading block index" is quicker: the block index is a hash table instead of a sorted map (at full chain size, looking blocks up took about 8 seconds instead of 39 in a test), and each block's chain trust is worked out on every CPU core
 Changed - window title shows Pre Release and the nightly date (11-18-2026 Nightly)
 Changed - Overview: "Recent Transactions" sits above its box, so the box fits more transactions; dates, labels and amounts are in the balance's gold
 Changed - Overview: the lock button turns gold (outline and text) while the wallet is unlocked

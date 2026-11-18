@@ -56,7 +56,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
     const CBlockIndex* pindexTx = NULL;
     if (hashBlock != 0)
     {
-        map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+        BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
         if (mi != mapBlockIndex.end() && (*mi).second && (*mi).second->IsInMainChain())
         {
             pindexTx = (*mi).second;

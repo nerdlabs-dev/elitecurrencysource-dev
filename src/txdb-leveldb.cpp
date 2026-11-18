@@ -320,7 +320,7 @@ static CBlockIndex *InsertBlockIndex(uint256 hash)
         return NULL;
 
     // Return existing
-    map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hash);
+    BlockMap::iterator mi = mapBlockIndex.find(hash);
     if (mi != mapBlockIndex.end())
         return (*mi).second;
 
@@ -462,10 +462,30 @@ bool CTxDB::LoadBlockIndex()
         vSortedByHeight.push_back(make_pair(pindex->nHeight, pindex));
     }
     sort(vSortedByHeight.begin(), vSortedByHeight.end());
-    BOOST_FOREACH(const PAIRTYPE(int, CBlockIndex*)& item, vSortedByHeight)
+    // Each block's own trust doesn't depend on any other block, and working it
+    // out (big-number division) is a large part of this step, so do it on
+    // every core first; adding it up along the chain stays in order below.
+    std::vector<uint256> vTrust(vSortedByHeight.size());
     {
-        CBlockIndex* pindex = item.second;
-        pindex->nChainTrust = (pindex->pprev ? pindex->pprev->nChainTrust : 0) + pindex->GetBlockTrust();
+        unsigned int nThreads = std::max(1u, std::min(16u, boost::thread::hardware_concurrency()));
+        size_t nPer = (vSortedByHeight.size() + nThreads - 1) / nThreads;
+        boost::thread_group threads;
+        for (unsigned int t = 0; t < nThreads; t++)
+        {
+            size_t nBegin = t * nPer, nEnd = std::min(vSortedByHeight.size(), nBegin + nPer);
+            if (nBegin >= nEnd)
+                break;
+            threads.create_thread([&vSortedByHeight, &vTrust, nBegin, nEnd]() {
+                for (size_t i = nBegin; i < nEnd; i++)
+                    vTrust[i] = vSortedByHeight[i].second->GetBlockTrust();
+            });
+        }
+        threads.join_all();
+    }
+    for (size_t i = 0; i < vSortedByHeight.size(); i++)
+    {
+        CBlockIndex* pindex = vSortedByHeight[i].second;
+        pindex->nChainTrust = (pindex->pprev ? pindex->pprev->nChainTrust : 0) + vTrust[i];
         // NovaCoin: calculate stake modifier checksum
         pindex->nStakeModifierChecksum = GetStakeModifierChecksum(pindex);
         if (!CheckStakeModifierCheckpoints(pindex->nHeight, pindex->nStakeModifierChecksum))

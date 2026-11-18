@@ -12,6 +12,7 @@
 #include "scrypt.h"
 #include "zerocoin/Zerocoin.h"
 #include "hashblock.h"
+#include "blockmap.h"
 #include <list>
 #include <atomic>
 
@@ -108,7 +109,7 @@ inline int64_t FutureDrift(int64_t nTime)
 extern libzerocoin::Params* ZCParams;
 extern CScript COINBASE_FLAGS;
 extern CCriticalSection cs_main;
-extern std::map<uint256, CBlockIndex*> mapBlockIndex;
+extern BlockMap mapBlockIndex;
 extern std::set<std::pair<COutPoint, unsigned int> > setStakeSeen;
 extern CBlockIndex* pindexGenesisBlock;
 extern unsigned int nTargetSpacing;
@@ -1552,7 +1553,7 @@ public:
 
     explicit CBlockLocator(uint256 hashBlock)
     {
-        std::map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+        BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
         if (mi != mapBlockIndex.end())
             Set((*mi).second);
     }
@@ -1603,7 +1604,7 @@ public:
         int nStep = 1;
         BOOST_FOREACH(const uint256& hash, vHave)
         {
-            std::map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hash);
+            BlockMap::iterator mi = mapBlockIndex.find(hash);
             if (mi != mapBlockIndex.end())
             {
                 CBlockIndex* pindex = (*mi).second;
@@ -1622,7 +1623,7 @@ public:
         // Find the first block the caller has in the main chain
         BOOST_FOREACH(const uint256& hash, vHave)
         {
-            std::map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hash);
+            BlockMap::iterator mi = mapBlockIndex.find(hash);
             if (mi != mapBlockIndex.end())
             {
                 CBlockIndex* pindex = (*mi).second;
@@ -1638,7 +1639,7 @@ public:
         // Find the first block the caller has in the main chain
         BOOST_FOREACH(const uint256& hash, vHave)
         {
-            std::map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hash);
+            BlockMap::iterator mi = mapBlockIndex.find(hash);
             if (mi != mapBlockIndex.end())
             {
                 CBlockIndex* pindex = (*mi).second;
