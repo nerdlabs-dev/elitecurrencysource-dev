@@ -6,11 +6,16 @@ RPC turned on (server=1, rpcuser and rpcpassword in 1337.conf):
 
     python3 contrib/checkpoints/make-checkpoints.py
 
-It reads the RPC login from 1337.conf, asks the node for the block hash and
-stake modifier checksum every 25,000 blocks (and at every height that
-already has a checkpoint), and checks that the existing checkpoints in
-src/checkpoints.cpp and src/kernel.cpp match what the node has. Then it
-writes checkpoints.txt with both lists ready to paste.
+It reads the RPC login from 1337.conf and asks the node for the block hash
+and stake modifier checksum every 25,000 blocks. The new lists replace all
+the existing checkpoints. Run from the source tree, it first checks that
+every existing checkpoint in src/checkpoints.cpp and src/kernel.cpp matches
+what the node has. Then it writes checkpoints.txt with both lists ready to
+paste.
+
+It also works on its own, without the source tree (for example downloaded
+next to a wallet): then it can't compare against the existing checkpoints,
+so have them checked before the new ones go in.
 
 With --apply it also writes the new lists into src/checkpoints.cpp and
 src/kernel.cpp. It refuses if any existing checkpoint doesn't match: that
@@ -219,8 +224,16 @@ def main():
               args.rpcport or int(conf.get("rpcport", 13372)),
               conf["rpcuser"], conf["rpcpassword"])
 
-    old_points = existing_checkpoints(args.repo)
-    old_mods = existing_modifiers(args.repo)
+    fHaveSource = os.path.exists(os.path.join(args.repo, CHECKPOINT_MAP[0])) and \
+                  os.path.exists(os.path.join(args.repo, MODIFIER_MAP[0]))
+    if fHaveSource:
+        old_points = existing_checkpoints(args.repo)
+        old_mods = existing_modifiers(args.repo)
+    else:
+        if args.apply:
+            sys.exit("--apply needs the source tree: run this from the repo, or pass --repo.")
+        print("No source tree here, so the existing checkpoints can't be compared; have them checked before use.")
+        old_points, old_mods = {}, {}
 
     tip = rpc.call("getblockcount")
     last = (tip - args.depth) // args.interval * args.interval
@@ -238,24 +251,23 @@ def main():
     hashes = rpc.batch("getblockhash", [(h,) for h in heights])
     blocks = rpc.batch("getblock", [(x,) for x in hashes], nChunk=100)
 
+    # The new lists hold only the every-interval heights; the old heights are
+    # fetched just to check them
     points, mods, mismatches = {}, {}, []
     for h, x, blk in zip(heights, hashes, blocks):
         if blk.get("height") != h or blk.get("hash") != x:
             sys.exit("The node returned block %s for height %d; it may have reorganised mid-run. Run again." % (blk.get("hash"), h))
-        points[h] = x.lower()
-        mods[h] = int(blk["modifierchecksum"], 16)
-        if h in old_points and old_points[h] is not None and old_points[h] != points[h]:
-            mismatches.append("block %d: wallet has %s, node has %s" % (h, old_points[h], points[h]))
-        if h in old_mods and old_mods[h] != mods[h]:
-            mismatches.append("stake modifier %d: wallet has 0x%08x, node has 0x%08x" % (h, old_mods[h], mods[h]))
-
-    # Existing checkpoints above the new last height (if any) are kept as they are
-    for h, x in old_points.items():
-        if h > last:
-            points[h] = x
-    for h, m in old_mods.items():
-        if h > last:
-            mods[h] = m
+        x = x.lower()
+        mod = int(blk["modifierchecksum"], 16)
+        if h in old_points and old_points[h] is not None and old_points[h] != x:
+            mismatches.append("block %d: wallet has %s, node has %s" % (h, old_points[h], x))
+        if h in old_mods and old_mods[h] != mod:
+            mismatches.append("stake modifier %d: wallet has 0x%08x, node has 0x%08x" % (h, old_mods[h], mod))
+        if h % args.interval == 0:
+            points[h], mods[h] = x, mod
+    nAbove = sum(1 for h in old_points if h > last) + sum(1 for h in old_mods if h > last)
+    if nAbove:
+        print("Note: %d existing checkpoint(s) are above block %d; the new lists replace them too." % (nAbove, last))
 
     nOldPoints = sum(1 for h in old_points if h <= last)
     nOldMods = sum(1 for h in old_mods if h <= last)
@@ -274,6 +286,9 @@ def main():
         f.write("\n".join(modifier_lines(mods)) + "\n")
 
     print("%d block checkpoints and %d stake modifier checkpoints written to %s" % (len(points), len(mods), out))
+    if not fHaveSource:
+        print("Existing checkpoints weren't compared (no source tree here).")
+        return
     print("Existing checkpoints checked: %d block, %d stake modifier" % (nOldPoints, nOldMods))
     if mismatches:
         print("\nThese existing checkpoints DON'T match the node:")
