@@ -2519,10 +2519,9 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
         if (!mapOrphanBlocks.count(hash))
             return true; // it was the one pruned; it'll be fetched again with its parents
 
-        // Ask this guy to fill in what we're missing. While we're still
-        // downloading the chain, only a 3.0+ wallet (the sync node fills in
-        // the rest), so older wallets never end up serving our download.
-        if (pfrom && (PeerClientVersion(pfrom) >= MIN_SYNC_PEER_VERSION || !IsInitialBlockDownload()))
+        // Ask this guy to fill in what we're missing. (STRICT_SYNC_PEER_VERSION,
+        // off for now: while still downloading the chain, only a 3.0+ wallet.)
+        if (pfrom && (!STRICT_SYNC_PEER_VERSION || PeerClientVersion(pfrom) >= MIN_SYNC_PEER_VERSION || !IsInitialBlockDownload()))
         {
             pfrom->PushGetBlocks(pindexBest, GetOrphanRoot(pblock2));
             // ppcoin: getblocks may not obtain the ancestor block rejected
@@ -3160,6 +3159,17 @@ void static ProcessGetData(CNode* pfrom)
     pfrom->vRecvGetData.erase(pfrom->vRecvGetData.begin(), it);
 }
 
+// A peer's subversion, as it can safely go in the log (printable characters
+// only, at most 80)
+static std::string LoggableSubVer(const std::string& str)
+{
+    std::string strOut;
+    for (size_t i = 0; i < str.size() && strOut.size() < 80; i++)
+        if (str[i] >= 32 && str[i] < 127)
+            strOut += str[i];
+    return strOut;
+}
+
 bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 {
     static map<CService, CPubKey> mapReuseKey;
@@ -3284,7 +3294,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
         pfrom->fSuccessfullyConnected = true;
 
-        printf("receive version message: version %d, blocks=%d, us=%s, them=%s, peer=%s\n", pfrom->nVersion, pfrom->nStartingHeight, addrMe.ToString().c_str(), addrFrom.ToString().c_str(), pfrom->addr.ToString().c_str());
+        printf("receive version message: %s: version %d, blocks=%d, us=%s, them=%s, peer=%s\n", LoggableSubVer(pfrom->strSubVer).c_str(), pfrom->nVersion, pfrom->nStartingHeight, addrMe.ToString().c_str(), addrFrom.ToString().c_str(), pfrom->addr.ToString().c_str());
 
         cPeerBlockCounts.input(pfrom->nStartingHeight);
 
@@ -3422,7 +3432,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                 pfrom->AskFor(inv, inv.type == MSG_BLOCK && IsSyncNode(pfrom));
             }
             else if (inv.type == MSG_BLOCK && mapOrphanBlocks.count(inv.hash)) {
-                if (PeerClientVersion(pfrom) >= MIN_SYNC_PEER_VERSION || !IsInitialBlockDownload())
+                if (!STRICT_SYNC_PEER_VERSION || PeerClientVersion(pfrom) >= MIN_SYNC_PEER_VERSION || !IsInitialBlockDownload())
                     pfrom->PushGetBlocks(pindexBest, GetOrphanRoot(mapOrphanBlocks[inv.hash]));
             } else if (nInv == nLastBlock) {
                 // In case we are on a very long side-chain, it is possible that we already have
@@ -3981,12 +3991,12 @@ bool ProcessMessages(CNode* pfrom)
 
 bool CanSyncFrom(const CNode* pnode)
 {
-    // A full node, not a one-shot connection, not far behind us, a version
-    // that serves blocks, and a 3.0 or newer wallet (MIN_SYNC_PEER_VERSION).
-    // (How tall it is compared with the other peers is up to StartSync in
-    // net.cpp.)
+    // A full node, not a one-shot connection, not far behind us, and a
+    // version that serves blocks. (How tall it is compared with the other
+    // peers is up to StartSync in net.cpp.)
+    // (STRICT_SYNC_PEER_VERSION, off for now: also a 3.0+ wallet)
     return !pnode->fClient && !pnode->fOneShot && pnode->nVersion != 0 &&
-           PeerClientVersion(pnode) >= MIN_SYNC_PEER_VERSION &&
+           (!STRICT_SYNC_PEER_VERSION || PeerClientVersion(pnode) >= MIN_SYNC_PEER_VERSION) &&
            pnode->fSuccessfullyConnected &&
            (pnode->nKnownHeight > (nBestHeight - 144)) &&
            (pnode->nVersion < NOBLKS_VERSION_START ||

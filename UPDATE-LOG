@@ -47,7 +47,8 @@ Removed - unused images and icons
 Fix - the wallet crashed on its first start (the wallet file name was empty in the settings migration)
 Faster sync - blocks are processed as soon as they arrive (the message thread no longer sleeps 100 ms between batches)
 Faster sync - the sync peer target is a height at least two peers agree on, so one peer claiming a fake height can't pull the wallet off course
-Changed - only 3.0 or newer wallets are used to download the block chain (sync node); older wallets still relay new blocks once synced
+Changed - 3.0 or newer wallets are always picked to download the block chain from, and replace an older sync peer as soon as one connects; older wallets are used only when no 3.0+ wallet is connected (temporary, until most users run 3.0+)
+Changed - debug.log shows each peer's wallet version when it connects
 Faster sync - while far behind, the wallet stops serving blocks to others so it can catch up first
 Fix - forks below the last checkpoint are rejected straight away
 Changed - public IP is learned from what peers report (two peers in different networks must agree) instead of an old web lookup at a fixed address
