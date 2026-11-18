@@ -1795,7 +1795,7 @@ static int64_t NodeSyncScore(const CNode* pnode)
     return nScore;
 }
 
-bool fCatchingUp = false;
+std::atomic<bool> fCatchingUp(false);
 
 // The highest height a peer could honestly have right now. A peer's height
 // starts as the number it sends when it connects and nothing proves it, so a

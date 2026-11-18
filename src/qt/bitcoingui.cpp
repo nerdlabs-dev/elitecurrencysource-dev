@@ -885,9 +885,28 @@ void BitcoinGUI::updateSyncEstimate()
 
 void BitcoinGUI::updateStakingIcon()
 {
+    // While downloading the chain we don't stake, so don't work out the stake
+    // weight either (it goes through every coin in the wallet with the core
+    // locked)
+    if (vNodes.empty() || IsInitialBlockDownload() || fCatchingUp)
+    {
+        labelStakingIcon->setPixmap(QIcon(":/icons/staking_off").pixmap(28,54));
+        labelStakingIcon->setToolTip(vNodes.empty() ? tr("Not staking because wallet is offline")
+                                                    : tr("Not staking because wallet is syncing"));
+        return;
+    }
+
     uint64_t nMinWeight = 0, nMaxWeight = 0, nWeight = 0;
     if (pwalletMain)
     {
+        // Never make the window wait on the core: if it's busy, try again on
+        // the next tick
+        TRY_LOCK(cs_main, lockMain);
+        if (!lockMain)
+            return;
+        TRY_LOCK(pwalletMain->cs_wallet, lockWallet);
+        if (!lockWallet)
+            return;
         fMultiSend = pwalletMain->fMultiSend;
         pwalletMain->GetStakeWeight(*pwalletMain, nMinWeight, nMaxWeight, nWeight);
     }

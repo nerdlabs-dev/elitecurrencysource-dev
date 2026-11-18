@@ -60,7 +60,7 @@ int GetBestPeerHeight();
 int GetAgreedPeerHeight();
 /** True while we are well behind the height our peers agree on (set by the
  *  message handler thread). We don't hand out blocks then. */
-extern bool fCatchingUp;
+extern std::atomic<bool> fCatchingUp;
 unsigned short GetListenPort();
 bool BindListenPort(const CService &bindAddr, std::string& strError=REF(std::string()));
 void StartNode(void* parg);

@@ -7,6 +7,7 @@
 #include "txdb.h"
 #include "miner.h"
 #include "kernel.h"
+#include "net.h"
 
 using namespace std;
 
@@ -541,7 +542,12 @@ void StakeMiner(CWallet *pwallet)
                 return;
         }
 
-        while (vNodes.empty() || IsInitialBlockDownload())
+        // Don't stake (or work out stake weight) while downloading the chain:
+        // IsInitialBlockDownload alone turns false whenever no block has
+        // arrived for 10 seconds, even years behind, and once past the last
+        // checkpoint. fCatchingUp: our newest block is over an hour old and
+        // our peers agree we're well behind.
+        while (vNodes.empty() || IsInitialBlockDownload() || fCatchingUp)
         {
             nLastCoinStakeSearchInterval = 0;
             fTryToSync = true;

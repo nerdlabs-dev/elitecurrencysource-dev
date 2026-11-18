@@ -6,6 +6,8 @@
 
 #include "ui_interface.h"
 #include "wallet.h"
+#include "main.h"
+#include "net.h"
 #include "walletdb.h" // for BackupWallet
 #include "base58.h"
 
@@ -81,12 +83,29 @@ void WalletModel::updateStatus()
 
 void WalletModel::pollBalanceChanged()
 {
-    if(nBestHeight != cachedNumBlocks)
-    {
-        // Balance and number of transactions might have changed
-        cachedNumBlocks = nBestHeight;
-        checkBalanceChanged();
-    }
+    if(nBestHeight == cachedNumBlocks)
+        return;
+
+    // While downloading the chain the height changes hundreds of times a
+    // second; going through the whole wallet on every poll slows the sync, so
+    // only every 10 seconds then
+    static int64_t nLastCheck = 0;
+    if (fCatchingUp && GetTime() - nLastCheck < 10)
+        return;
+
+    // Never make the window wait on the core: if it's busy (processing
+    // blocks), try again on the next poll
+    TRY_LOCK(cs_main, lockMain);
+    if (!lockMain)
+        return;
+    TRY_LOCK(wallet->cs_wallet, lockWallet);
+    if (!lockWallet)
+        return;
+
+    // Balance and number of transactions might have changed
+    nLastCheck = GetTime();
+    cachedNumBlocks = nBestHeight;
+    checkBalanceChanged();
 }
 
 void WalletModel::checkBalanceChanged()

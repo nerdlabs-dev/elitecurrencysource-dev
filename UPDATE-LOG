@@ -50,6 +50,8 @@ Faster sync - the sync peer target is a height at least two peers agree on, so o
 Changed - 3.0 or newer wallets are always picked to download the block chain from, and replace an older sync peer as soon as one connects; older wallets are used only when no 3.0+ wallet is connected (temporary, until most users run 3.0+)
 Changed - debug.log shows each peer's wallet version when it connects
 Changed - block files are 25 MiB each in a "chain" folder (as on FlapX); existing blk*.dat files are moved there on first start, no resync needed
+Fix - no staking and no stake weight calculation while the wallet is still downloading the chain (before, a pause of 10 seconds between blocks, or getting past the last checkpoint, could make it start staking on an old block)
+Fix - the window never waits on the core for the balance or staking icon, and checks the balance every 10 seconds while syncing instead of on every block
 Changed - the block number in the wallet updates 10 times a second while syncing (was twice a second)
 Fix - addresses that keep failing are retried less and less often (1, 2, 4 ... minutes, at most an hour apart) instead of every few seconds, so a wallet that knows only a few dead addresses stops hammering them
 Faster sync - while far behind, the wallet stops serving blocks to others so it can catch up first
