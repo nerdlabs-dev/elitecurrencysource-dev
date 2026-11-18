@@ -7,7 +7,7 @@ RPC turned on (server=1, rpcuser and rpcpassword in 1337.conf):
     python3 contrib/checkpoints/make-checkpoints.py
 
 It reads the RPC login from 1337.conf, asks the node for the block hash and
-stake modifier checksum every 2,500 blocks (and at every height that
+stake modifier checksum every 25,000 blocks (and at every height that
 already has a checkpoint), and checks that the existing checkpoints in
 src/checkpoints.cpp and src/kernel.cpp match what the node has. Then it
 writes checkpoints-<height>.txt with both lists ready to paste.
@@ -25,7 +25,7 @@ Options:
   --conf FILE      config file (default: 1337.conf in the data folder)
   --rpcconnect IP  node address (default: from the config, else 127.0.0.1)
   --rpcport N      RPC port (default: from the config, else 13372)
-  --interval N     blocks between checkpoints (default: 2500)
+  --interval N     blocks between checkpoints (default: 25000)
   --depth N        leave at least this many blocks above the last
                    checkpoint (default: 5000), so a recent reorganisation
                    can't end up in a checkpoint
@@ -204,7 +204,7 @@ def main():
     ap.add_argument("--conf")
     ap.add_argument("--rpcconnect")
     ap.add_argument("--rpcport", type=int)
-    ap.add_argument("--interval", type=int, default=2500)
+    ap.add_argument("--interval", type=int, default=25000)
     ap.add_argument("--depth", type=int, default=5000)
     ap.add_argument("--repo", default=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
     ap.add_argument("--apply", action="store_true")
