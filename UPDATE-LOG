@@ -25,6 +25,9 @@ Memory - old block/transaction requests are forgotten; per-peer request queue ca
 Memory - orphan transaction pool limited to 1000
 Fix - key copies kept the wrong compressed flag; bad keys leaked memory
 Fix - MultiSend tried to send a transaction that failed to be created
+Fix - MultiSend: a disabled address no longer stops MultiSend for every other stake; a split stake no longer ends the loop early; your split-stake setting is no longer switched off for good
+Fix - change could go to a random address on some send paths (a coin control setting was never set)
+Changed - change goes back to the address it came from, so a wallet backup always holds the change (-returnchange=0 for a new address each time); key pool is 1000 keys (was 100)
 Fix - -testnet failed at startup (genesis block)
 Added - -blockbatchsize option
 Added - RPC: getblockchaininfo, getblockheader, gettxout, gettxoutsetinfo, getmempoolinfo, getnetworkhashps, getsupply, getmaxmoney
