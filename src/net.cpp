@@ -1372,6 +1372,21 @@ void static ThreadStakeMiner(void* parg)
     printf("ThreadStakeMiner exiting, %d threads remaining\n", vnThreadsRunning[THREAD_STAKE_MINER]);
 }
 
+// Outgoing connection attempts that failed, by address: failures in a row and
+// when we last tried. An address that keeps failing is tried less and less
+// often (1, 2, 4 ... minutes, at most an hour apart). Without this, a wallet
+// that knows only a few addresses tried the same dead ones every few
+// seconds. Only used by ThreadOpenConnections2.
+static std::map<CService, std::pair<int, int64_t> > mapConnectFailures;
+
+// How long to leave an address that has failed nFailures times in a row
+static int64_t ConnectRetryDelay(int nFailures)
+{
+    if (nFailures <= 0)
+        return 0;
+    return std::min((int64_t)60 << std::min(nFailures - 1, 6), (int64_t)60 * 60);
+}
+
 void ThreadOpenConnections2(void* parg)
 {
     printf("ThreadOpenConnections started\n");
@@ -1481,6 +1496,13 @@ void ThreadOpenConnections2(void* parg)
             if (nANow - addr.nLastTry < 600 && nTries < 30)
                 continue;
 
+            // leave addresses that keep failing alone for a while, however
+            // few other addresses we know
+            std::map<CService, std::pair<int, int64_t> >::const_iterator itFail = mapConnectFailures.find(addr);
+            if (itFail != mapConnectFailures.end() &&
+                GetTime() - itFail->second.second < ConnectRetryDelay(itFail->second.first))
+                continue;
+
             // do not allow non-default ports, unless after 50 invalid addresses selected already
             if (addr.GetPort() != GetDefaultPort() && nTries < 50)
                 continue;
@@ -1490,7 +1512,30 @@ void ThreadOpenConnections2(void* parg)
         }
 
         if (addrConnect.IsValid())
-            OpenNetworkConnection(addrConnect, &grant);
+        {
+            int64_t nNow = GetTime();
+            if (OpenNetworkConnection(addrConnect, &grant))
+                mapConnectFailures.erase(addrConnect);
+            else
+            {
+                std::pair<int, int64_t>& fail = mapConnectFailures[addrConnect];
+                fail.first++;
+                fail.second = nNow;
+                if (fail.first >= 2)
+                    printf("connect to %s failed %d times in a row, next try in %d min\n",
+                           addrConnect.ToString().c_str(), fail.first, (int)(ConnectRetryDelay(fail.first) / 60));
+            }
+
+            // Forget failures from long ago, so the map can't grow forever
+            if (mapConnectFailures.size() > 1000)
+                for (std::map<CService, std::pair<int, int64_t> >::iterator it = mapConnectFailures.begin(); it != mapConnectFailures.end(); )
+                {
+                    if (nNow - it->second.second > 2 * 60 * 60)
+                        mapConnectFailures.erase(it++);
+                    else
+                        ++it;
+                }
+        }
     }
 }
 
