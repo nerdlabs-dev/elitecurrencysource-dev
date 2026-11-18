@@ -15,6 +15,7 @@ public:
     void SetNull()
     {
         destChange = CNoDestination();
+        fReturnChange = false;   // was left uninitialised, so change could go anywhere at random
         setSelected.clear();
     }
     

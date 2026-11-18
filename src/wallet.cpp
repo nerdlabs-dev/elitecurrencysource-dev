@@ -15,6 +15,11 @@
 
 using namespace std;
 
+// Elite: send change back to the address it came from rather than a new key,
+// so a wallet backup always covers change. Turn off with -returnchange=0.
+bool fReturnChangeToSource = true;
+
+
 
 // The following split & combine thresholds are important to security
 // Should not be adjusted if you don't understand the consequences
@@ -1460,6 +1465,11 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, 
 						scriptChange.SetDestination(utxoAddress);
                     else if (coinControl && !boost::get<CNoDestination>(&coinControl->destChange))
                         scriptChange.SetDestination(coinControl->destChange);
+                    // Elite: send change back to the address it came from, so wallet
+                    // backups always hold the key for change (-returnchange=0 to disable)
+                    else if (fReturnChangeToSource && !boost::get<CNoDestination>(&utxoAddress) &&
+                             ::IsMine(*this, utxoAddress))
+                        scriptChange.SetDestination(utxoAddress);
 
                     // no coin control: send change to newly generated address
                     else
@@ -2040,7 +2050,7 @@ bool CWallet::NewKeyPool()
         if (IsLocked())
             return false;
 
-        int64_t nKeys = max(GetArg("-keypool", 100), (int64_t)0);
+        int64_t nKeys = max(GetArg("-keypool", 1000), (int64_t)0);
         for (int i = 0; i < nKeys; i++)
         {
             int64_t nIndex = i+1;
@@ -2067,7 +2077,7 @@ bool CWallet::TopUpKeyPool(unsigned int nSize)
         if (nSize > 0)
             nTargetSize = nSize;
         else
-            nTargetSize = max(GetArg("-keypool", 100), (int64_t)0);
+            nTargetSize = max(GetArg("-keypool", 1000), (int64_t)0);
 
         while (setKeyPool.size() < (nTargetSize + 1))
         {
@@ -2500,78 +2510,94 @@ void CWallet::GetKeyBirthTimes(std::map<CKeyID, int64_t> &mapKeyBirth) const {
 
 bool CWallet::MultiSend()
 {
+    // Elite MultiSend: on a stake's 30th confirmation, send the chosen percentages of
+    // its reward. Each payment is funded only from that stake's own output and the
+    // change goes back to the staking address, so no new addresses are created.
     if ( IsInitialBlockDownload() || IsLocked() )
         return false;
-    int64_t nAmount = 0;
 
+    // already handled this block height
+    if (nBestHeight <= nLastMultiSendHeight)
+        return true;
+
+    LOCK(cs_wallet);
+    std::vector<COutput> vCoins;
+    AvailableCoins(vCoins);
+
+    std::set<uint256> setHandled;   // one payment per stake, even when a stake was split into two outputs
+    bool fHandledAny = false;
+
+    BOOST_FOREACH(const COutput& out, vCoins)
     {
-        LOCK(cs_wallet);
-        std::vector<COutput> vCoins;
-        AvailableCoins(vCoins);
-        
-         BOOST_FOREACH(const COutput& out, vCoins)
+        if (!(out.tx->IsCoinStake() && out.tx->GetBlocksToMaturity() == 0 && out.tx->GetDepthInMainChain() == nCoinbaseMaturity+20))
+            continue;
+
+        uint256 txhash = out.tx->GetHash();
+        if (setHandled.count(txhash))
+            continue;
+        setHandled.insert(txhash);
+        fHandledAny = true;
+
+        CTxDestination address;
+        if(!ExtractDestination(out.tx->vout[out.i].scriptPubKey, address))
+            continue;
+
+        // Disabled addresses skip only their own stakes (earlier versions stopped
+        // MultiSend for every other stake in the wallet as well)
+        bool fDisabled = false;
+        for(unsigned int i = 0; i < vDisabledAddresses.size(); i++)
+            if(vDisabledAddresses[i] == CBitcoinAddress(address).ToString())
+                fDisabled = true;
+        if (fDisabled)
+            continue;
+
+        // build the payments: each MultiSend entry is (address, percent of this stake's reward)
+        vector<pair<CScript, int64_t> > vecSend;
+        for(unsigned int i = 0; i < vMultiSend.size(); i++)
         {
-            CTxDestination address;
-            if(!ExtractDestination(out.tx->vout[out.i].scriptPubKey, address)) continue;
-            if (nBestHeight <= nLastMultiSendHeight ) 
-                    return false;   
-            if (out.tx->IsCoinStake() && out.tx->GetBlocksToMaturity() == 0  && out.tx->GetDepthInMainChain() == nCoinbaseMaturity+20)
-            {
-                //Disabled Addresses won't send MultiSend transactions
-                if(vDisabledAddresses.size() > 0)
-                {
-                    for(unsigned int i = 0; i < vDisabledAddresses.size(); i++)
-                    {
-                        if(vDisabledAddresses[i] == CBitcoinAddress(address).ToString())
-                        {
-                            return false;
-                        }
-                    }
-                }
-                
-                // create new coin control, populate it with the selected utxo, create sending vector
-                CCoinControl* cControl = new CCoinControl();
-                uint256 txhash = out.tx->GetHash();
-                COutPoint outpt(txhash, out.i);
-                cControl->Select(outpt);    
-                CWalletTx wtx;
-                cControl->fReturnChange = true;
-                CReserveKey keyChange(this); // this change address does not end up being used, because change is returned with coin control switch
-                int64_t nFeeRet = 0;
-                vector<pair<CScript, int64_t> > vecSend;
-                    
-                // loop through multisend vector and add amounts and addresses to the sending vector
-                for(unsigned int i = 0; i < vMultiSend.size(); i++)
-                {
-                    // MultiSend vector is a pair of 1)Address as a std::string  2) Percent of stake to send as an int
-                    nAmount = ( ( out.tx->GetCredit() - out.tx->GetDebit() ) * vMultiSend[i].second )/100;
-                    CBitcoinAddress strAddSend(vMultiSend[i].first);
-                    CScript scriptPubKey;
-                        scriptPubKey.SetDestination(strAddSend.Get());
-                    vecSend.push_back(make_pair(scriptPubKey, nAmount));
-                }
-                //make sure splitblock is off
-                fSplitBlock = false;
-                
-                // Create the transaction and commit it to the network
-                bool fCreated = CreateTransaction(vecSend, wtx, keyChange, nFeeRet, 1, cControl);
-                delete cControl;
-                if (!fCreated)
-                    printf("MultiSend createtransaction failed\n");
-                // only commit a transaction that was actually created
-                else if(!CommitTransaction(wtx, keyChange))
-                    printf("MultiSend transaction commit failed\n");
-                else
-                    fMultiSendNotify = true;
-                
-                //write nLastMultiSendHeight to DB
-                CWalletDB walletdb(strWalletFile);
-                nLastMultiSendHeight = nBestHeight;
-                if(!walletdb.WriteMSettings(fMultiSend, nLastMultiSendHeight))
-                    printf("Failed to write MultiSend setting to DB");
-                
-            }
+            int64_t nAmount = ( ( out.tx->GetCredit() - out.tx->GetDebit() ) * vMultiSend[i].second )/100;
+            if (nAmount <= 0)
+                continue;
+            CBitcoinAddress strAddSend(vMultiSend[i].first);
+            CScript scriptPubKey;
+            scriptPubKey.SetDestination(strAddSend.Get());
+            vecSend.push_back(make_pair(scriptPubKey, nAmount));
         }
+        if (vecSend.empty())
+            continue;
+
+        // fund from this stake's output only, change back to the staking address
+        CCoinControl cControl;
+        COutPoint outpt(txhash, out.i);
+        cControl.Select(outpt);
+        cControl.fReturnChange = true;
+
+        CWalletTx wtx;
+        CReserveKey keyChange(this); // not used: change is returned to the staking address
+        int64_t nFeeRet = 0;
+
+        // the payment itself must not be split; restore the user's split setting afterwards
+        // (earlier versions switched it off for good)
+        bool fSplitSaved = fSplitBlock;
+        fSplitBlock = false;
+        bool fCreated = CreateTransaction(vecSend, wtx, keyChange, nFeeRet, 1, &cControl);
+        fSplitBlock = fSplitSaved;
+
+        if (!fCreated)
+            printf("MultiSend createtransaction failed\n");
+        else if(!CommitTransaction(wtx, keyChange))
+            printf("MultiSend transaction commit failed\n");
+        else
+            fMultiSendNotify = true;
+    }
+
+    if (fHandledAny)
+    {
+        //write nLastMultiSendHeight to DB
+        CWalletDB walletdb(strWalletFile);
+        nLastMultiSendHeight = nBestHeight;
+        if(!walletdb.WriteMSettings(fMultiSend, nLastMultiSendHeight))
+            printf("Failed to write MultiSend setting to DB\n");
     }
     return true;
 }

@@ -296,7 +296,8 @@ std::string HelpMessage()
         "  -enforcecanonical      " + _("Enforce transaction scripts to use canonical PUSH operators (default: 1)") + "\n" +
         "  -alertnotify=<cmd>     " + _("Execute command when a relevant alert is received (%s in cmd is replaced by message)") + "\n" +
         "  -upgradewallet         " + _("Upgrade wallet to latest format") + "\n" +
-        "  -keypool=<n>           " + _("Set key pool size to <n> (default: 100)") + "\n" +
+        "  -keypool=<n>           " + _("Set key pool size to <n> (default: 1000)") + "\n" +
+        "  -returnchange          " + _("Send change back to the address it came from instead of a new address, so wallet backups always cover change (default: 1)") + "\n" +
         "  -rescan                " + _("Rescan the block chain for missing wallet transactions") + "\n" +
         "  -salvagewallet         " + _("Attempt to recover private keys from a corrupt wallet.dat") + "\n" +
         "  -checkblocks=<n>       " + _("How many blocks to check at startup (default: 2500, 0 = all)") + "\n" +
@@ -670,6 +671,9 @@ bool AppInit2()
             AddLocal(CService(strAddr, GetListenPort(), fNameLookup), LOCAL_MANUAL);
         }
     }
+
+    // Elite: change returns to its source address unless -returnchange=0
+    fReturnChangeToSource = GetBoolArg("-returnchange", true);
 
     if (mapArgs.count("-reservebalance")) // ppcoin: reserve balance amount
     {
