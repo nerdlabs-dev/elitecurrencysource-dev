@@ -251,6 +251,10 @@ OverviewPage::OverviewPage(QWidget *parent) :
     ui->listTransactions->viewport()->installEventFilter(this);
     aboutText = ui->labelAbout->text();
     ui->labelAbout->installEventFilter(this);
+    // The status takes the width of its panel and shrinks its type to fit
+    // (fitRoyaltyText), rather than a long name widening the panel
+    ui->labelRoyalty->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    ui->labelRoyalty->installEventFilter(this);
 
     connect(ui->listTransactions, SIGNAL(clicked(QModelIndex)), this, SLOT(handleTransactionClicked(QModelIndex)));
     connect(ui->buttonLock, SIGNAL(clicked()), this, SLOT(lockButtonClicked()));
@@ -271,6 +275,8 @@ bool OverviewPage::eventFilter(QObject *object, QEvent *event)
         updateTransactionRows();
     if (object == ui->labelAbout && event->type() == QEvent::Resize)
         fitAboutText();
+    if (object == ui->labelRoyalty && event->type() == QEvent::Resize)
+        fitRoyaltyText();
     return QWidget::eventFilter(object, event);
 }
 
@@ -350,6 +356,63 @@ void OverviewPage::setBalance(qint64 balance, qint64 stake, qint64 unconfirmedBa
     ui->labelStake->setText(BitcoinUnits::formatWithUnit(unit, stake));
     ui->labelUnconfirmed->setText(BitcoinUnits::formatWithUnit(unit, unconfirmedBalance));
     ui->labelImmature->setText(BitcoinUnits::formatWithUnit(unit, immatureBalance));
+    updateRoyalty();
+}
+
+// Elite status by how many coins the wallet holds, lowest first
+struct RoyaltyTier
+{
+    qint64 nCoins;
+    const char *name;
+};
+static const RoyaltyTier ROYALTY_TIERS[] = {
+    {          0LL, QT_TRANSLATE_NOOP("OverviewPage", "Noob") },
+    {     500000LL, QT_TRANSLATE_NOOP("OverviewPage", "Entrepreneur") },
+    {    1000000LL, QT_TRANSLATE_NOOP("OverviewPage", "Millionaire") },
+    {   10000000LL, QT_TRANSLATE_NOOP("OverviewPage", "Investor") },
+    {  100000000LL, QT_TRANSLATE_NOOP("OverviewPage", "Magnate") },
+    {  250000000LL, QT_TRANSLATE_NOOP("OverviewPage", "Mogul") },
+    {  500000000LL, QT_TRANSLATE_NOOP("OverviewPage", "Tycoon") },
+    { 1000000000LL, QT_TRANSLATE_NOOP("OverviewPage", "Billionaire") },
+    { 3000000000LL, QT_TRANSLATE_NOOP("OverviewPage", "Elite") },
+};
+static const int NUM_ROYALTY_TIERS = sizeof(ROYALTY_TIERS) / sizeof(ROYALTY_TIERS[0]);
+
+void OverviewPage::updateRoyalty()
+{
+    // Everything the wallet holds: spendable, staking, still confirming and
+    // newly minted
+    qint64 nTotal = currentBalance + currentStake + currentUnconfirmedBalance + currentImmatureBalance;
+    int nTier = 0;
+    while (nTier + 1 < NUM_ROYALTY_TIERS && nTotal >= ROYALTY_TIERS[nTier + 1].nCoins * COIN)
+        nTier++;
+    ui->labelRoyalty->setText(tr(ROYALTY_TIERS[nTier].name));
+
+    int unit = model ? model->getOptionsModel()->getDisplayUnit() : BitcoinUnits::BTC;
+    QString tip = tr("Your Elite status, from everything this wallet holds: %1.")
+                  .arg(BitcoinUnits::formatWithUnit(unit, nTotal));
+    if (nTier + 1 < NUM_ROYALTY_TIERS)
+        tip += "<br>" + tr("Next: %1 at %2.").arg(tr(ROYALTY_TIERS[nTier + 1].name))
+                        .arg(BitcoinUnits::formatWithUnit(unit, ROYALTY_TIERS[nTier + 1].nCoins * COIN));
+    else
+        tip += "<br>" + tr("The highest status there is.");
+    ui->labelRoyalty->setToolTip(tip);
+    fitRoyaltyText();
+}
+
+void OverviewPage::fitRoyaltyText()
+{
+    // The status in large script type, smaller for long names so it fits
+    QLabel *label = ui->labelRoyalty;
+    int nRoom = label->width() - 8;
+    if (nRoom <= 0)
+        return;
+    int nSize = 50;
+    QFont font = GUIUtil::themeFont(GUIUtil::FontScript, nSize);
+    while (nSize > 22 && QFontMetrics(font).horizontalAdvance(label->text()) > nRoom)
+        font = GUIUtil::themeFont(GUIUtil::FontScript, nSize -= 2);
+    if (font != label->font())
+        label->setFont(font);
 }
 
 void OverviewPage::setNumTransactions(int count)

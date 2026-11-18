@@ -91,6 +91,8 @@ private:
 
     void updateTransactionRows();
     void fitAboutText();
+    void updateRoyalty();
+    void fitRoyaltyText();
 
 private slots:
     void updateDisplayUnit();
