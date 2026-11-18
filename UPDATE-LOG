@@ -65,7 +65,7 @@ Fix - a peer claiming a made-up block height could make a synced wallet stop han
 Added - sync bar tooltip shows blocks per second (right now and averaged over the last few minutes), from the start of the sync
 Added - sync bar shows the download speed in blocks a minute next to the time left
 Added - Elite Status on the overview changes with how much the wallet holds: Noob, Entrepreneur (500K), Millionaire (1M), Investor (10M), Magnate (100M), Mogul (250M), Tycoon (500M), Billionaire (1B), Elite (3B); hover it to see the next level
-Changed - window title shows Pre Release
+Changed - window title shows Pre Release and the nightly date (11-17-2026 Nightly)
 Removed - old NovaCoin/Bitcoin packaging and art (Debian, Gitian, NSIS installer, bitmaps, Doxygen logo); Windows icon renamed elite.ico
 
 

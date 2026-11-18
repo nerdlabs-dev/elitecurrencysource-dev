@@ -93,8 +93,10 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     // lays itself out to the space it gets
     setMinimumSize(800, 580);
     resize(960, 710);
-    // Pre Release: test builds, so testers know this isn't a final wallet
-    setWindowTitle(tr("Elite Currency") + " - " + tr("Pre Release"));
+    // Pre Release: test builds, so testers know this isn't a final wallet.
+    // The nightly date tells testers which build they're running.
+    static const char *NIGHTLY_DATE = "11-17-2026";
+    setWindowTitle(tr("Elite Currency") + " - " + tr("Pre Release") + " - " + QString(NIGHTLY_DATE) + " " + tr("Nightly"));
 
 
 #ifndef Q_OS_MAC
