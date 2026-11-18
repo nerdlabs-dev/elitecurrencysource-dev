@@ -9,6 +9,8 @@ Added - GitHub Actions builds for Linux, Windows and macOS (Apple Silicon and In
 Faster sync - 500 blocks per getblocks request (was 50)
 Faster sync - sync peer is chosen and replaced when it stalls or disconnects (was the first peer to connect, forever)
 Faster sync - stall watchdog asks again after 60s without a new block, switches peer after two stalls
+Fix - sync paused after every batch past block 17280: peers pointed downloaders back at their last proof-of-work block (17280, the end of PoW) to continue, which got nothing new; now they point at their best block, and the wallet continues from its own tip when an older peer still names 17280 (local test: 185s -> 8s)
+Faster sync - if the sync peer goes quiet for 5s after a batch, the wallet asks for the next batch itself instead of waiting for a new network block
 Faster sync - blocks offered by the sync peer are requested immediately (no 2 minute retry delay)
 Faster sync - larger database cache by default (-dbcache=100)
 Faster sync - sync peer is picked from the tallest peers (newer wallets first among them), not a peer that is itself still syncing

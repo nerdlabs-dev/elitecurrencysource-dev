@@ -255,6 +255,7 @@ public:
     int64_t nLastGetBlocksTime; // when we last sent this peer a getblocks request
     int nSyncStalls;            // stall watchdog firings in a row at the same height
     int nSyncStallHeight;       // our height at the last firing
+    int nSyncContinueHeight;    // our height when we last asked for the next batch unprompted
     int64_t nSyncAvoidUntil;    // don't pick this peer to sync from before this time
     bool fStartSync;            // chosen as sync peer; send it getblocks next time round
     int nStartingHeight;
@@ -314,6 +315,7 @@ public:
         nLastGetBlocksTime = 0;
         nSyncStalls = 0;
         nSyncStallHeight = -1;
+        nSyncContinueHeight = -1;
         nSyncAvoidUntil = 0;
         fStartSync = false;
         nStartingHeight = -1;

@@ -47,6 +47,8 @@ static const int DEFAULT_BLOCK_BATCH_SIZE = 500;
 static const int64_t SYNC_STALL_TIMEOUT = 60;
 /** Stall watchdog firings in a row (at the same height) before switching to another sync peer */
 static const int SYNC_STALLS_BEFORE_SWITCH = 2;
+/** Seconds the sync peer may go quiet after a batch before we ask for the next one ourselves */
+static const int64_t SYNC_CONTINUE_TIMEOUT = 5;
 /** Peers within this many blocks of the tallest peer all count as tall enough to sync from */
 static const int SYNC_HEIGHT_SLACK = 1000;
 /** Move off a sync peer that has run out of blocks when another peer is at least this far ahead */

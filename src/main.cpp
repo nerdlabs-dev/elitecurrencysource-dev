@@ -3168,11 +3168,16 @@ void static ProcessGetData(CNode* pfrom)
                 // Trigger them to send a getblocks request for the next batch of inventory
                 if (inv.hash == pfrom->hashContinue)
                 {
-                    // ppcoin: send latest proof-of-work block to allow the
-                    // download node to accept as orphan (proof-of-stake
-                    // block might be rejected by stake connection check)
+                    // Tell them about our best block so they ask for the next
+                    // batch. PPCoin sent the latest proof-of-work block here,
+                    // but Elite's PoW ended at block 17280, so every server
+                    // pointed downloaders back at 17280: a peer already past
+                    // it got nothing new and sat waiting for the next network
+                    // block (the long sync pauses at 17280, 17780, 18280...).
+                    // Orphan proof-of-stake blocks are accepted, so the tip
+                    // works fine as the continuation marker.
                     vector<CInv> vInv;
-                    vInv.push_back(CInv(MSG_BLOCK, GetLastBlockIndex(pindexBest, false)->GetBlockHash()));
+                    vInv.push_back(CInv(MSG_BLOCK, hashBestChain));
                     pfrom->PushMessage("inv", vInv);
                     pfrom->hashContinue = 0;
                 }
@@ -3485,10 +3490,22 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                 if (!STRICT_SYNC_PEER_VERSION || PeerClientVersion(pfrom) >= MIN_SYNC_PEER_VERSION || !IsInitialBlockDownload())
                     pfrom->PushGetBlocks(pindexBest, GetOrphanRoot(mapOrphanBlocks[inv.hash]));
             } else if (nInv == nLastBlock) {
+                CBlockIndex* pindexInv = mapBlockIndex[inv.hash];
+                if (vInv.size() == 1 && pindexInv && (pindexInv->pnext || pindexInv == pindexBest) &&
+                    pfrom->nKnownHeight > nBestHeight)
+                {
+                    // A lone block inv for a block already on our chain from a peer
+                    // that is ahead of us is the "send me getblocks" signal at the end
+                    // of a batch. 2.0.1.2 and 3.0.0 servers always name their last
+                    // proof-of-work block (17280), so asking from that block again
+                    // got nowhere. Continue from our own tip instead.
+                    pfrom->PushGetBlocks(pindexBest, uint256(0));
+                }
+                else
                 // In case we are on a very long side-chain, it is possible that we already have
                 // the last block in an inv bundle sent in response to getblocks. Try to detect
                 // this situation and push another getblocks to continue.
-                pfrom->PushGetBlocks(mapBlockIndex[inv.hash], uint256(0));
+                pfrom->PushGetBlocks(pindexInv, uint256(0));
                 if (fDebug)
                     printf("force request: %s\n", inv.ToString().c_str());
             }
@@ -4134,6 +4151,31 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
                     pto->hashLastGetBlocksEnd = 0;
                     pto->PushGetBlocks(pindexBest, uint256(0));
                 }
+            }
+        }
+
+        // Batch continuation fallback. When the sync peer has delivered a batch
+        // and no "ask me for more" signal follows (a batch cut short by an
+        // orphan's stop hash, a lost inv), we used to wait for the next network
+        // block or the 60 s watchdog. Ask for the next batch ourselves after
+        // SYNC_CONTINUE_TIMEOUT, once per height, without touching the
+        // watchdog's timer so real stalls are still caught and acted on.
+        if (IsSyncNode(pto) && pto->pindexLastGetBlocksBegin != NULL &&
+            pto->nKnownHeight > nBestHeight && pto->nSyncContinueHeight != nBestHeight)
+        {
+            int64_t nNow = GetTime();
+            if (nNow - nTimeBestReceived > SYNC_CONTINUE_TIMEOUT &&
+                nNow - pto->nLastGetBlocksTime > SYNC_CONTINUE_TIMEOUT)
+            {
+                if (fDebug)
+                    printf("sync peer %s quiet at height %d, asking for the next batch\n",
+                           pto->addrName.c_str(), nBestHeight);
+                pto->nSyncContinueHeight = nBestHeight;
+                int64_t nLastGetBlocksTime = pto->nLastGetBlocksTime;
+                pto->pindexLastGetBlocksBegin = NULL;
+                pto->hashLastGetBlocksEnd = 0;
+                pto->PushGetBlocks(pindexBest, uint256(0));
+                pto->nLastGetBlocksTime = nLastGetBlocksTime;
             }
         }
 
